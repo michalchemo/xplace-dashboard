@@ -14,46 +14,44 @@ $db = get_db();
 
 // Return cached description if exists
 if ($id) {
-    $row = $db->prepare('SELECT project_description FROM proposals WHERE id=?');
-    $row->execute([$id]);
-    $r = $row->fetch();
+    $stmt = $db->prepare('SELECT project_description FROM proposals WHERE id=?');
+    $stmt->execute([$id]);
+    $r = $stmt->fetch();
     if ($r && !empty($r['project_description'])) {
         echo json_encode(['ok' => true, 'description' => $r['project_description'], 'cached' => true]);
         exit;
     }
 }
 
-// Fetch from XPlace server-side
-$ctx = stream_context_create(['http' => [
-    'header'  => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36\r\nAccept-Language: he-IL,he;q=0.9\r\n",
-    'timeout' => 12,
-    'follow_location' => 1,
-]]);
+// Fetch via curl (server-side)
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT        => 12,
+    CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    CURLOPT_HTTPHEADER     => ['Accept-Language: he-IL,he;q=0.9'],
+]);
+$html = curl_exec($ch);
+curl_close($ch);
 
-$html = @file_get_contents($url, false, $ctx);
 if (!$html) {
     echo json_encode(['ok' => false, 'error' => 'fetch_failed']);
     exit;
 }
 
-// Try multiple selectors for job description
+// Extract og:description (available in static HTML, no JS needed)
 $desc = '';
-$patterns = [
-    '/<div[^>]+class="[^"]*job[_-]description[^"]*"[^>]*>(.*?)<\/div>/si',
-    '/<div[^>]+class="[^"]*description[^"]*"[^>]*>(.*?)<\/div>/si',
-    '/<div[^>]+class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/si',
-    '/<section[^>]+class="[^"]*description[^"]*"[^>]*>(.*?)<\/section>/si',
-];
-foreach ($patterns as $p) {
-    if (preg_match($p, $html, $m)) {
-        $desc = strip_tags($m[1]);
-        $desc = html_entity_decode(trim(preg_replace('/[ \t]+/', ' ', preg_replace('/\n{3,}/', "\n\n", $desc))), ENT_QUOTES, 'UTF-8');
-        if (mb_strlen($desc) > 50) break;
-        $desc = '';
-    }
+if (preg_match('/<meta[^>]+property="og:description"[^>]+content="([^"]+)"/i', $html, $m)) {
+    $desc = html_entity_decode(trim($m[1]), ENT_QUOTES, 'UTF-8');
 }
 
-// Cache in DB for next time
+// Fallback: meta name="description"
+if (empty($desc) && preg_match('/<meta[^>]+name="description"[^>]+content="([^"]+)"/i', $html, $m)) {
+    $desc = html_entity_decode(trim($m[1]), ENT_QUOTES, 'UTF-8');
+}
+
+// Cache in DB
 if ($id && $desc) {
     $stmt = $db->prepare('UPDATE proposals SET project_description=? WHERE id=?');
     $stmt->execute([$desc, $id]);

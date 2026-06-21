@@ -333,7 +333,19 @@ function loadDetail(id, url, title, text, price, notes, status, description) {
     box.textContent = description;
   } else {
     box.className = 'job-content-loading';
-    box.textContent = 'תוכן המודעה יתווסף בריצה הבאה של הסוכן';
+    box.textContent = 'טוען...';
+    fetch(`/api/get_job_content.php?id=${id}&url=${encodeURIComponent(url)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.description) {
+          box.className = 'job-content-box';
+          box.textContent = data.description;
+        } else {
+          box.className = 'job-content-loading';
+          box.textContent = 'לא ניתן לטעון תוכן';
+        }
+      })
+      .catch(() => { box.className = 'job-content-loading'; box.textContent = 'שגיאה בטעינה'; });
   }
 
   const ta = document.getElementById('detailText');
