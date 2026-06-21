@@ -1,16 +1,16 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/db.php';
 
 $db     = get_db();
 $filter = $_GET['status'] ?? 'pending';
-$valid  = ['pending', 'approved', 'dismissed', 'submitted', 'all'];
+$valid  = ['pending', 'approved', 'to_withdraw', 'submitted', 'all'];
 if (!in_array($filter, $valid)) $filter = 'pending';
 
 $where = $filter === 'all' ? '' : "WHERE status = '$filter'";
 $rows  = $db->query("SELECT * FROM proposals $where ORDER BY created_at DESC")->fetchAll();
 
 $counts = [];
-foreach (['pending','approved','dismissed','submitted'] as $s) {
+foreach (['pending','approved','to_withdraw','submitted'] as $s) {
     $counts[$s] = (int)$db->query("SELECT COUNT(*) FROM proposals WHERE status='$s'")->fetchColumn();
 }
 ?>
@@ -19,7 +19,7 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nintay — XPlace Proposals</title>
+<title>Nintay â€” XPlace Proposals</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Arial, sans-serif; background: #f0f2f5; color: #222; height: 100vh; display: flex; flex-direction: column; }
@@ -46,7 +46,7 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
   }
   nav a.active .badge { background: #1a1a2e; color: #fff; }
 
-  /* ── Main split layout ── */
+  /* â”€â”€ Main split layout â”€â”€ */
   .workspace {
     display: flex; flex: 1; overflow: hidden;
   }
@@ -81,7 +81,7 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
 
   .empty { text-align: center; padding: 60px 0; color: #aaa; font-size: 14px; }
 
-  /* ── Cards ── */
+  /* â”€â”€ Cards â”€â”€ */
   .card {
     background: #fff; border-radius: 8px; margin-bottom: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden;
@@ -173,12 +173,12 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
 <body>
 
 <header>
-  <h1>Nintay · XPlace Proposals</h1>
-  <span style="font-size:12px;opacity:.5">ממשק ניהול הצעות</span>
+  <h1>Nintay Â· XPlace Proposals</h1>
+  <span style="font-size:12px;opacity:.5">×ž×ž×©×§ × ×™×”×•×œ ×”×¦×¢×•×ª</span>
 </header>
 
 <nav>
-  <?php foreach (['pending'=>'ממתינות','approved'=>'לשליחה','submitted'=>'נשלחו','dismissed'=>'נדחו','all'=>'הכל'] as $s => $label): ?>
+  <?php foreach (['pending'=>'×ž×ž×ª×™× ×•×ª','approved'=>'×œ×©×œ×™×—×”','submitted'=>'× ×©×œ×—×•','to_withdraw'=>'× ×“×—×•','all'=>'×”×›×œ'] as $s => $label): ?>
     <a href="?status=<?= $s ?>" class="<?= $filter===$s ? 'active' : '' ?>">
       <?= $label ?>
       <?php if ($s !== 'all'): ?>
@@ -193,10 +193,10 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
   <!-- Left: card list -->
   <div class="card-list">
     <?php if (empty($rows)): ?>
-      <div class="empty">אין הצעות ב<?= htmlspecialchars($filter) ?></div>
+      <div class="empty">××™×Ÿ ×”×¦×¢×•×ª ×‘<?= htmlspecialchars($filter) ?></div>
     <?php else: ?>
       <?php foreach ($rows as $row):
-        $isPlaceholder = ($row['proposal_text'] === 'ממתין לסקירה' || $row['proposal_text'] === '');
+        $isPlaceholder = ($row['proposal_text'] === '×ž×ž×ª×™×Ÿ ×œ×¡×§×™×¨×”' || $row['proposal_text'] === '');
       ?>
       <div class="card" id="card-<?= $row['id'] ?>">
 
@@ -207,12 +207,12 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
               <?= htmlspecialchars($row['project_title']) ?>
             </span>
             <div class="card-meta">
-              פרויקט #<?= htmlspecialchars($row['project_id']) ?> ·
+              ×¤×¨×•×™×§×˜ #<?= htmlspecialchars($row['project_id']) ?> Â·
               <?= date('d/m H:i', strtotime($row['created_at'])) ?>
             </div>
           </div>
           <span class="status-badge status-<?= $row['status'] ?>">
-            <?= ['pending'=>'ממתין','approved'=>'לשליחה','dismissed'=>'נדחה','submitted'=>'נשלח'][$row['status']] ?>
+            <?= ['pending'=>'×ž×ž×ª×™×Ÿ','approved'=>'×œ×©×œ×™×—×”','to_withdraw'=>'× ×“×—×”','submitted'=>'× ×©×œ×—'][$row['status']] ?>
           </span>
         </div>
 
@@ -222,31 +222,31 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
                     onfocus="clearPlaceholder(this)"><?= htmlspecialchars($row['proposal_text']) ?></textarea>
 
           <div class="price-row">
-            <label>מחיר:</label>
+            <label>×ž×—×™×¨:</label>
             <input type="number" class="price-input" data-id="<?= $row['id'] ?>"
                    value="<?= (int)$row['price'] ?>" min="50" max="5000" step="10">
-            <span>₪ / שעה</span>
+            <span>â‚ª / ×©×¢×”</span>
           </div>
 
           <textarea class="notes-text" data-id="<?= $row['id'] ?>"
-                    placeholder="הערות פנימיות..."><?= htmlspecialchars($row['notes'] ?? '') ?></textarea>
+                    placeholder="×”×¢×¨×•×ª ×¤× ×™×ž×™×•×ª..."><?= htmlspecialchars($row['notes'] ?? '') ?></textarea>
         </div>
 
         <div class="card-footer">
-          <a class="btn-xplace" href="<?= htmlspecialchars($row['project_url']) ?>" target="_blank">XPlace ↗</a>
+          <a class="btn-xplace" href="<?= htmlspecialchars($row['project_url']) ?>" target="_blank">XPlace â†—</a>
 
           <?php if ($row['status'] === 'pending'): ?>
-            <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">↑ הגש</button>
-            <button class="btn-dismiss" onclick="doAction(<?= $row['id'] ?>, 'dismiss')">✕ דחה</button>
-            <button class="btn-save"    onclick="doAction(<?= $row['id'] ?>, 'save')">שמור</button>
+            <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">â†‘ ×”×’×©</button>
+            <button class="btn-dismiss" onclick="doAction(<?= $row['id'] ?>, 'dismiss')">âœ• ×“×—×”</button>
+            <button class="btn-save"    onclick="doAction(<?= $row['id'] ?>, 'save')">×©×ž×•×¨</button>
 
           <?php elseif ($row['status'] === 'approved'): ?>
-            <button class="btn-submitted" onclick="doAction(<?= $row['id'] ?>, 'submitted')">✓ סמן כנשלח</button>
-            <button class="btn-dismiss"   onclick="doAction(<?= $row['id'] ?>, 'dismiss')">✕ דחה</button>
-            <button class="btn-save"      onclick="doAction(<?= $row['id'] ?>, 'save')">שמור</button>
+            <button class="btn-submitted" onclick="doAction(<?= $row['id'] ?>, 'submitted')">âœ“ ×¡×ž×Ÿ ×›× ×©×œ×—</button>
+            <button class="btn-dismiss"   onclick="doAction(<?= $row['id'] ?>, 'dismiss')">âœ• ×“×—×”</button>
+            <button class="btn-save"      onclick="doAction(<?= $row['id'] ?>, 'save')">×©×ž×•×¨</button>
 
-          <?php elseif (in_array($row['status'], ['dismissed','submitted'])): ?>
-            <button class="btn-restore" onclick="doAction(<?= $row['id'] ?>, 'restore')">↩ החזר לממתינות</button>
+          <?php elseif (in_array($row['status'], ['to_withdraw','submitted'])): ?>
+            <button class="btn-restore" onclick="doAction(<?= $row['id'] ?>, 'restore')">â†© ×”×—×–×¨ ×œ×ž×ž×ª×™× ×•×ª</button>
           <?php endif; ?>
         </div>
 
@@ -262,12 +262,12 @@ foreach (['pending','approved','dismissed','submitted'] as $s) {
         <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
         <line x1="9" y1="21" x2="9" y2="9"/>
       </svg>
-      לחץ על כותרת פרויקט לצפייה במודעה
+      ×œ×—×¥ ×¢×œ ×›×•×ª×¨×ª ×¤×¨×•×™×§×˜ ×œ×¦×¤×™×™×” ×‘×ž×•×“×¢×”
     </div>
     <div id="previewContent" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="preview-header">
         <h3 id="previewTitle"></h3>
-        <a id="previewLink" href="#" target="_blank">פתח בטאב ↗</a>
+        <a id="previewLink" href="#" target="_blank">×¤×ª×— ×‘×˜××‘ â†—</a>
       </div>
       <iframe class="preview-iframe" id="previewIframe" src="about:blank"
               sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
@@ -326,13 +326,13 @@ function doAction(id, action) {
     .then(data => {
       if (data.ok) {
         const msgs = {
-          approve:   '↑ הועבר לתור השליחה',
-          dismiss:   '✕ נדחה — יוסר מ-XPlace בריצה הבאה',
-          submitted: '✓ סומן כנשלח',
-          restore:   '↩ הוחזר לממתינות',
-          save:      '✓ נשמר',
+          approve:   'â†‘ ×”×•×¢×‘×¨ ×œ×ª×•×¨ ×”×©×œ×™×—×”',
+          dismiss:   'âœ• × ×“×—×” â€” ×™×•×¡×¨ ×ž-XPlace ×‘×¨×™×¦×” ×”×‘××”',
+          submitted: 'âœ“ ×¡×•×ž×Ÿ ×›× ×©×œ×—',
+          restore:   'â†© ×”×•×—×–×¨ ×œ×ž×ž×ª×™× ×•×ª',
+          save:      'âœ“ × ×©×ž×¨',
         };
-        showToast(msgs[action] ?? 'עודכן');
+        showToast(msgs[action] ?? '×¢×•×“×›×Ÿ');
         if (action !== 'save') {
           const card = document.getElementById('card-' + id);
           if (card) {
@@ -342,11 +342,13 @@ function doAction(id, action) {
           }
         }
       } else {
-        alert('שגיאה: ' + (data.error ?? 'unknown'));
+        alert('×©×’×™××”: ' + (data.error ?? 'unknown'));
       }
     })
-    .catch(err => alert('שגיאת רשת:\n' + err.message));
+    .catch(err => alert('×©×’×™××ª ×¨×©×ª:\n' + err.message));
 }
 </script>
 </body>
 </html>
+
+

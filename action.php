@@ -28,7 +28,7 @@ try {
 
         case 'dismiss':
             $stmt = $db->prepare('UPDATE proposals SET status=?, updated_at=NOW() WHERE id=?');
-            $stmt->execute(['dismissed', $id]);
+            $stmt->execute(['to_withdraw', $id]);
             echo json_encode(['ok' => true]);
             break;
 
@@ -45,7 +45,6 @@ try {
             break;
 
         case 'save':
-            // Save proposal text + price + notes without changing status
             $text  = trim($_POST['proposal_text'] ?? '');
             $price = (int)($_POST['price'] ?? 200);
             $notes = trim($_POST['notes'] ?? '');

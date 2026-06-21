@@ -1,5 +1,5 @@
 <?php
-// GET endpoint — returns dismissed proposals so the agent can remove them from XPlace.
+// GET endpoint — returns proposals marked for XPlace withdrawal so the agent can remove them.
 // Auth: Bearer token matching API_KEY in config.php
 
 require_once dirname(__DIR__) . '/db.php';
@@ -15,7 +15,7 @@ if (!str_starts_with($auth, 'Bearer ') || trim(substr($auth, 7)) !== API_KEY) {
 }
 
 $db   = get_db();
-$rows = $db->query("SELECT project_id, project_url FROM proposals WHERE status = 'dismissed' AND withdrawal_done = 0")
+$rows = $db->query("SELECT project_id, project_url FROM proposals WHERE status = 'to_withdraw' AND withdrawal_done = 0")
            ->fetchAll();
 
 echo json_encode(['ok' => true, 'withdrawals' => $rows]);
