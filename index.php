@@ -110,6 +110,9 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .btn-request  { background: #6f42c1; color: #fff; }
   .btn-waiting  { background: #e9ecef; color: #888; font-style: italic; }
 
+  .card-agent-note { font-size: 11px; color: #7a5800; background: #fffbe6; border-top: 1px solid #ffe066; padding: 5px 12px 6px; line-height: 1.5; direction: rtl; }
+  .card-agent-note strong { color: #b45309; }
+
   .agent-notes-box { background: #fffbe6; border: 1px solid #ffe066; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #5a4a00; line-height: 1.7; direction: rtl; white-space: pre-wrap; }
 
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
@@ -201,6 +204,10 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
             <?= ['pending'=>'ממתין','approved'=>'לשליחה','to_withdraw'=>'נדחה','submitted'=>'נשלח'][$row['status']] ?? $row['status'] ?>
           </span>
         </div>
+
+        <?php if (!empty($row['agent_notes'])): ?>
+          <div class="card-agent-note"><strong>🤖 סוכן:</strong> <?= htmlspecialchars(mb_substr($row['agent_notes'], 0, 80, 'UTF-8')) ?><?= mb_strlen($row['agent_notes'], 'UTF-8') > 80 ? '…' : '' ?></div>
+        <?php endif; ?>
 
         <div class="card-footer">
           <a class="btn-xplace" href="<?= htmlspecialchars($row['project_url']) ?>" target="_blank">XPlace &#8599;</a>
@@ -298,12 +305,13 @@ function closeDismissModal() {
 }
 
 function confirmDismiss() {
+  const id = dismissPendingId; // save BEFORE closeDismissModal nulls it
   const selected = [...document.querySelectorAll('.reason-pill.selected')].map(p => p.textContent);
   const other    = document.getElementById('dismissOther').value.trim();
   if (other) selected.push(other);
   const reason = selected.join(', ');
   closeDismissModal();
-  doAction(dismissPendingId, 'dismiss', undefined, undefined, undefined, reason);
+  doAction(id, 'dismiss', undefined, undefined, undefined, reason);
 }
 
 // Close modal on overlay click
