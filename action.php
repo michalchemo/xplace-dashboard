@@ -61,6 +61,12 @@ try {
             echo json_encode(['ok' => true]);
             break;
 
+        case 'request_proposal':
+            $stmt = $db->prepare('UPDATE proposals SET proposal_requested=1, updated_at=NOW() WHERE id=?');
+            $stmt->execute([$id]);
+            echo json_encode(['ok' => true]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['ok' => false, 'error' => 'Unknown action']);

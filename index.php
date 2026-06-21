@@ -107,6 +107,11 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .btn-xplace   { background: #f0f0f0; color: #333; text-decoration: none; display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
   .btn-xplace:hover { background: #e0e0e0; }
 
+  .btn-request  { background: #6f42c1; color: #fff; }
+  .btn-waiting  { background: #e9ecef; color: #888; font-style: italic; }
+
+  .agent-notes-box { background: #fffbe6; border: 1px solid #ffe066; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #5a4a00; line-height: 1.7; direction: rtl; white-space: pre-wrap; }
+
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
   .toast.show { opacity: 1; }
 
@@ -152,6 +157,10 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
           <div class="detail-label">תוכן המודעה</div>
           <div id="jobContentBox" class="job-content-loading">טוען...</div>
         </div>
+        <div id="agentNotesSection" style="display:none">
+          <div class="detail-label">&#129302; הסוכן דחה — סיבה</div>
+          <div id="agentNotesBox" class="agent-notes-box"></div>
+        </div>
         <div>
           <div class="detail-label">הצעה</div>
           <textarea class="detail-textarea" id="detailText" onfocus="clearDetailPlaceholder()"></textarea>
@@ -183,7 +192,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <div class="card" id="card-<?= $row['id'] ?>">
 
         <div class="card-header"
-             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>)">
+             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['agent_notes'] ?? ''), ENT_QUOTES) ?>, <?= (int)($row['proposal_requested'] ?? 0) ?>)">
           <div style="flex:1;min-width:0">
             <div class="card-title"><?= htmlspecialchars($row['project_title']) ?></div>
             <div class="card-meta">פרויקט #<?= htmlspecialchars($row['project_id']) ?> &middot; <?= date('d/m H:i', strtotime($row['created_at'])) ?></div>
@@ -199,6 +208,13 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
           <?php if ($row['status'] === 'pending'): ?>
             <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">&#8593; הגש</button>
             <button class="btn-dismiss" onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
+            <?php if ($isPlaceholder): ?>
+              <?php if ($row['proposal_requested'] ?? 0): ?>
+                <button class="btn-waiting" disabled>&#9203; ממתין לסוכן</button>
+              <?php else: ?>
+                <button class="btn-request" onclick="requestProposal(<?= $row['id'] ?>)">&#10022; בקשי הצעה</button>
+              <?php endif; ?>
+            <?php endif; ?>
 
           <?php elseif ($row['status'] === 'approved'): ?>
             <button class="btn-submitted" onclick="doAction(<?= $row['id'] ?>, 'submitted')">&#10003; סמן כנשלח</button>
@@ -311,7 +327,7 @@ function clearDetailPlaceholder() {
   }
 }
 
-function loadDetail(id, url, title, text, price, notes, status, description) {
+function loadDetail(id, url, title, text, price, notes, status, description, agentNotes, proposalRequested) {
   currentId = id;
 
   // highlight card
@@ -356,6 +372,16 @@ function loadDetail(id, url, title, text, price, notes, status, description) {
   document.getElementById('detailPrice').value = price || 200;
   document.getElementById('detailNotes').value = notes || '';
 
+  // agent notes
+  const notesSection = document.getElementById('agentNotesSection');
+  const notesBox     = document.getElementById('agentNotesBox');
+  if (agentNotes && agentNotes.trim()) {
+    notesBox.textContent = agentNotes;
+    notesSection.style.display = '';
+  } else {
+    notesSection.style.display = 'none';
+  }
+
   // footer buttons
   const footer = document.getElementById('detailFooter');
   footer.innerHTML = '';
@@ -379,6 +405,24 @@ function loadDetail(id, url, title, text, price, notes, status, description) {
     dis.onclick = () => openDismissModal(id);
     footer.appendChild(dis);
 
+    const isPlaceholder = (text === 'ממתין לסקירה' || text === '');
+    if (isPlaceholder) {
+      if (proposalRequested) {
+        const waiting = document.createElement('button');
+        waiting.className = 'btn-waiting';
+        waiting.textContent = '⏳ ממתין לסוכן';
+        waiting.disabled = true;
+        footer.appendChild(waiting);
+      } else {
+        const reqBtn = document.createElement('button');
+        reqBtn.className = 'btn-request';
+        reqBtn.id = 'detailReqBtn';
+        reqBtn.textContent = '✦ בקשי הצעה';
+        reqBtn.onclick = () => requestProposal(id);
+        footer.appendChild(reqBtn);
+      }
+    }
+
   } else if (status === 'approved') {
     const sent = document.createElement('button');
     sent.className = 'btn-submitted';
@@ -398,6 +442,29 @@ function loadDetail(id, url, title, text, price, notes, status, description) {
     rest.textContent = '↩ החזר לממתינות';
     rest.onclick = () => doActionDetail('restore');
     footer.appendChild(rest);
+  }
+}
+
+function requestProposal(id) {
+  doAction(id, 'request_proposal');
+  // update card button immediately
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const reqBtn = card.querySelector('.btn-request');
+    if (reqBtn) {
+      reqBtn.className = 'btn-waiting';
+      reqBtn.textContent = '⏳ ממתין לסוכן';
+      reqBtn.disabled = true;
+      reqBtn.onclick = null;
+    }
+  }
+  // update detail footer button too
+  const detailReqBtn = document.getElementById('detailReqBtn');
+  if (detailReqBtn) {
+    detailReqBtn.className = 'btn-waiting';
+    detailReqBtn.textContent = '⏳ ממתין לסוכן';
+    detailReqBtn.disabled = true;
+    detailReqBtn.onclick = null;
   }
 }
 
@@ -426,14 +493,15 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
     .then(data => {
       if (data.ok) {
         const msgs = {
-          approve:   '↑ הועבר לתור השליחה',
-          dismiss:   '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
-          submitted: '✓ סומן כנשלח',
-          restore:   '↩ הוחזר לממתינות',
-          save:      '✓ נשמר',
+          approve:          '↑ הועבר לתור השליחה',
+          dismiss:          '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
+          submitted:        '✓ סומן כנשלח',
+          restore:          '↩ הוחזר לממתינות',
+          save:             '✓ נשמר',
+          request_proposal: '✦ בקשה נשלחה – הסוכן ימלא הצעה בריצה הבאה',
         };
         showToast(msgs[action] ?? 'עודכן');
-        if (action !== 'save') {
+        if (action !== 'save' && action !== 'request_proposal') {
           const card = document.getElementById('card-' + id);
           if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
           if (currentId === id) {
