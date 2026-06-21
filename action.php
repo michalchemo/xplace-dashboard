@@ -27,8 +27,9 @@ try {
             break;
 
         case 'dismiss':
-            $stmt = $db->prepare('UPDATE proposals SET status=?, updated_at=NOW() WHERE id=?');
-            $stmt->execute(['to_withdraw', $id]);
+            $reason = trim($_POST['rejection_reason'] ?? '');
+            $stmt = $db->prepare('UPDATE proposals SET status=?, rejection_reason=?, updated_at=NOW() WHERE id=?');
+            $stmt->execute(['to_withdraw', $reason ?: null, $id]);
             echo json_encode(['ok' => true]);
             break;
 

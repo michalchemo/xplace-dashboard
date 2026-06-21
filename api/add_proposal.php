@@ -26,19 +26,20 @@ foreach ($required as $field) {
     }
 }
 
-$project_id    = trim($body['project_id']);
-$project_title = trim($body['project_title']);
-$project_url   = trim($body['project_url']);
-$proposal_text = trim($body['proposal_text'] ?? '');   // optional — empty = pending review
-$price         = (int)($body['price'] ?? 200);
-$price_type    = $body['price_type'] ?? 'hourly';
+$project_id          = trim($body['project_id']);
+$project_title       = trim($body['project_title']);
+$project_url         = trim($body['project_url']);
+$proposal_text       = trim($body['proposal_text'] ?? '');   // optional — empty = pending review
+$project_description = trim($body['project_description'] ?? '');  // full job ad text
+$price               = (int)($body['price'] ?? 200);
+$price_type          = $body['price_type'] ?? 'hourly';
 
 // --- Upsert (ignore if project already exists) ---
 $db = get_db();
 $stmt = $db->prepare('
-    INSERT IGNORE INTO proposals (project_id, project_title, project_url, proposal_text, price, price_type)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT IGNORE INTO proposals (project_id, project_title, project_url, proposal_text, project_description, price, price_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
 ');
-$stmt->execute([$project_id, $project_title, $project_url, $proposal_text, $price, $price_type]);
+$stmt->execute([$project_id, $project_title, $project_url, $proposal_text, $project_description, $price, $price_type]);
 
 echo json_encode(['ok' => true, 'inserted' => $stmt->rowCount()]);

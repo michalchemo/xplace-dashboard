@@ -49,11 +49,27 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .detail-header a { font-size: 12px; color: #666; text-decoration: none; }
   .detail-header a:hover { color: #1a1a2e; text-decoration: underline; }
 
+  /* Job ad content area */
+  .job-content-box { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 6px; padding: 12px 14px; font-size: 12px; color: #444; line-height: 1.7; direction: rtl; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+  .job-content-loading { color: #aaa; font-size: 12px; font-style: italic; padding: 8px 0; }
+
   .detail-body { flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   .detail-label { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 4px; }
-  .detail-textarea { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.7; resize: vertical; font-family: inherit; direction: rtl; min-height: 180px; }
+  .detail-textarea { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.7; resize: vertical; font-family: inherit; direction: rtl; min-height: 160px; }
   .detail-textarea:focus { outline: none; border-color: #1a1a2e; }
   .detail-textarea.placeholder-text { color: #aaa; font-style: italic; }
+
+  /* Dismiss reason modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 900; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 10px; padding: 24px; width: 380px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,.18); direction: rtl; }
+  .modal h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+  .reason-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .reason-pill { padding: 6px 14px; border: 2px solid #ddd; border-radius: 20px; font-size: 12px; cursor: pointer; background: #fff; font-family: inherit; transition: all .15s; }
+  .reason-pill.selected { border-color: #dc3545; background: #dc3545; color: #fff; }
+  .modal-other { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; font-size: 12px; font-family: inherit; direction: rtl; margin-bottom: 16px; }
+  .modal-other:focus { outline: none; border-color: #1a1a2e; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-start; }
 
   .price-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .price-row input[type=number] { width: 80px; border: 1px solid #ddd; border-radius: 6px; padding: 5px 8px; font-size: 13px; text-align: center; }
@@ -133,6 +149,10 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       </div>
       <div class="detail-body">
         <div>
+          <div class="detail-label">תוכן המודעה</div>
+          <div id="jobContentBox" class="job-content-loading">טוען...</div>
+        </div>
+        <div>
           <div class="detail-label">הצעה</div>
           <textarea class="detail-textarea" id="detailText" onfocus="clearDetailPlaceholder()"></textarea>
         </div>
@@ -178,11 +198,11 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
           <?php if ($row['status'] === 'pending'): ?>
             <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">&#8593; הגש</button>
-            <button class="btn-dismiss" onclick="doAction(<?= $row['id'] ?>, 'dismiss')">&#10005; דחה</button>
+            <button class="btn-dismiss" onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
 
           <?php elseif ($row['status'] === 'approved'): ?>
             <button class="btn-submitted" onclick="doAction(<?= $row['id'] ?>, 'submitted')">&#10003; סמן כנשלח</button>
-            <button class="btn-dismiss"   onclick="doAction(<?= $row['id'] ?>, 'dismiss')">&#10005; דחה</button>
+            <button class="btn-dismiss"   onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
 
           <?php elseif (in_array($row['status'], ['to_withdraw','submitted'])): ?>
             <button class="btn-restore" onclick="doAction(<?= $row['id'] ?>, 'restore')">&#8617; החזר לממתינות</button>
@@ -198,8 +218,82 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
 <div class="toast" id="toast"></div>
 
+<!-- Dismiss reason modal -->
+<div class="modal-overlay" id="dismissModal">
+  <div class="modal">
+    <h3>סיבת דחייה</h3>
+    <div class="reason-pills">
+      <button class="reason-pill" onclick="togglePill(this)">לא רלוונטי לתחום</button>
+      <button class="reason-pill" onclick="togglePill(this)">תחרות גבוהה</button>
+      <button class="reason-pill" onclick="togglePill(this)">תקציב נמוך</button>
+      <button class="reason-pill" onclick="togglePill(this)">לקוח לא ברור</button>
+      <button class="reason-pill" onclick="togglePill(this)">אין זמן כרגע</button>
+      <button class="reason-pill" onclick="togglePill(this)">כבר הוגש</button>
+    </div>
+    <input class="modal-other" id="dismissOther" type="text" placeholder="סיבה אחרת...">
+    <div class="modal-actions">
+      <button class="btn-dismiss" id="dismissConfirmBtn" onclick="confirmDismiss()">דחה</button>
+      <button class="btn-save" onclick="closeDismissModal()">ביטול</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let currentId = null;
+let dismissPendingId = null;
+
+// ── Job content fetch ──────────────────────────────────────────
+function loadJobContent(id, url) {
+  const box = document.getElementById('jobContentBox');
+  box.className = 'job-content-loading';
+  box.textContent = 'טוען תוכן מודעה...';
+  fetch(`/api/get_job_content.php?id=${id}&url=${encodeURIComponent(url)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && data.description) {
+        box.className = 'job-content-box';
+        box.textContent = data.description;
+      } else {
+        box.className = 'job-content-loading';
+        box.textContent = 'לא ניתן לטעון תוכן — פתח ב-XPlace ישירות';
+      }
+    })
+    .catch(() => {
+      box.className = 'job-content-loading';
+      box.textContent = 'שגיאה בטעינת תוכן';
+    });
+}
+
+// ── Dismiss modal ──────────────────────────────────────────────
+function togglePill(el) {
+  el.classList.toggle('selected');
+}
+
+function openDismissModal(id) {
+  dismissPendingId = id;
+  document.querySelectorAll('.reason-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('dismissOther').value = '';
+  document.getElementById('dismissModal').classList.add('open');
+}
+
+function closeDismissModal() {
+  document.getElementById('dismissModal').classList.remove('open');
+  dismissPendingId = null;
+}
+
+function confirmDismiss() {
+  const selected = [...document.querySelectorAll('.reason-pill.selected')].map(p => p.textContent);
+  const other    = document.getElementById('dismissOther').value.trim();
+  if (other) selected.push(other);
+  const reason = selected.join(', ');
+  closeDismissModal();
+  doAction(dismissPendingId, 'dismiss', undefined, undefined, undefined, reason);
+}
+
+// Close modal on overlay click
+document.addEventListener('click', e => {
+  if (e.target.id === 'dismissModal') closeDismissModal();
+});
 
 function showToast(msg, color) {
   const t = document.getElementById('toast');
@@ -232,6 +326,7 @@ function loadDetail(id, url, title, text, price, notes, status) {
 
   document.getElementById('detailTitle').textContent = title;
   document.getElementById('detailLink').href = url;
+  loadJobContent(id, url);
 
   const ta = document.getElementById('detailText');
   const isPlaceholder = (text === 'ממתין לסקירה' || text === '');
@@ -261,7 +356,7 @@ function loadDetail(id, url, title, text, price, notes, status) {
     const dis = document.createElement('button');
     dis.className = 'btn-dismiss';
     dis.textContent = '✕ דחה';
-    dis.onclick = () => doActionDetail('dismiss');
+    dis.onclick = () => openDismissModal(id);
     footer.appendChild(dis);
 
   } else if (status === 'approved') {
@@ -274,7 +369,7 @@ function loadDetail(id, url, title, text, price, notes, status) {
     const dis = document.createElement('button');
     dis.className = 'btn-dismiss';
     dis.textContent = '✕ דחה';
-    dis.onclick = () => doActionDetail('dismiss');
+    dis.onclick = () => openDismissModal(id);
     footer.appendChild(dis);
 
   } else {
@@ -294,12 +389,13 @@ function doActionDetail(action) {
   doAction(currentId, action, text, price, notes);
 }
 
-function doAction(id, action, textOverride, priceOverride, notesOverride) {
-  const text  = textOverride  !== undefined ? textOverride  : '';
-  const price = priceOverride !== undefined ? priceOverride : 200;
-  const notes = notesOverride !== undefined ? notesOverride : '';
+function doAction(id, action, textOverride, priceOverride, notesOverride, rejectionReason) {
+  const text   = textOverride  !== undefined ? textOverride  : '';
+  const price  = priceOverride !== undefined ? priceOverride : 200;
+  const notes  = notesOverride !== undefined ? notesOverride : '';
+  const reason = rejectionReason || '';
 
-  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes });
+  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reason: reason });
 
   fetch('action.php', { method: 'POST', body })
     .then(async r => {
