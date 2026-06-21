@@ -163,7 +163,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <div class="card" id="card-<?= $row['id'] ?>">
 
         <div class="card-header"
-             onclick="loadDetail(<?= $row['id'] ?>, <?= json_encode($row['project_url']) ?>, <?= json_encode($row['project_title']) ?>, <?= json_encode($row['proposal_text']) ?>, <?= (int)$row['price'] ?>, <?= json_encode($row['notes'] ?? '') ?>, <?= json_encode($row['status']) ?>)">
+             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>)">
           <div style="flex:1;min-width:0">
             <div class="card-title"><?= htmlspecialchars($row['project_title']) ?></div>
             <div class="card-meta">פרויקט #<?= htmlspecialchars($row['project_id']) ?> &middot; <?= date('d/m H:i', strtotime($row['created_at'])) ?></div>
