@@ -17,7 +17,7 @@ if (!str_starts_with($auth, 'Bearer ') || trim(substr($auth, 7)) !== API_KEY) {
 // --- Input ---
 $body = json_decode(file_get_contents('php://input'), true);
 
-$required = ['project_id', 'project_title', 'project_url', 'proposal_text'];
+$required = ['project_id', 'project_title', 'project_url'];
 foreach ($required as $field) {
     if (empty($body[$field])) {
         http_response_code(400);
@@ -29,7 +29,7 @@ foreach ($required as $field) {
 $project_id    = trim($body['project_id']);
 $project_title = trim($body['project_title']);
 $project_url   = trim($body['project_url']);
-$proposal_text = trim($body['proposal_text']);
+$proposal_text = trim($body['proposal_text'] ?? '');   // optional — empty = pending review
 $price         = (int)($body['price'] ?? 200);
 $price_type    = $body['price_type'] ?? 'hourly';
 
