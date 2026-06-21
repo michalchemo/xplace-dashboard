@@ -183,7 +183,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <div class="card" id="card-<?= $row['id'] ?>">
 
         <div class="card-header"
-             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>)">
+             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>)">
           <div style="flex:1;min-width:0">
             <div class="card-title"><?= htmlspecialchars($row['project_title']) ?></div>
             <div class="card-meta">פרויקט #<?= htmlspecialchars($row['project_id']) ?> &middot; <?= date('d/m H:i', strtotime($row['created_at'])) ?></div>
@@ -311,7 +311,7 @@ function clearDetailPlaceholder() {
   }
 }
 
-function loadDetail(id, url, title, text, price, notes, status) {
+function loadDetail(id, url, title, text, price, notes, status, description) {
   currentId = id;
 
   // highlight card
@@ -326,7 +326,15 @@ function loadDetail(id, url, title, text, price, notes, status) {
 
   document.getElementById('detailTitle').textContent = title;
   document.getElementById('detailLink').href = url;
-  loadJobContent(id, url);
+
+  const box = document.getElementById('jobContentBox');
+  if (description && description.length > 20) {
+    box.className = 'job-content-box';
+    box.textContent = description;
+  } else {
+    box.className = 'job-content-loading';
+    box.textContent = 'תוכן המודעה יתווסף בריצה הבאה של הסוכן';
+  }
 
   const ta = document.getElementById('detailText');
   const isPlaceholder = (text === 'ממתין לסקירה' || text === '');

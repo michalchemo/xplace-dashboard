@@ -54,6 +54,13 @@ try {
             echo json_encode(['ok' => true]);
             break;
 
+        case 'save_description':
+            $desc = trim($_POST['description'] ?? '');
+            $stmt = $db->prepare('UPDATE proposals SET project_description=? WHERE id=?');
+            $stmt->execute([$desc, $id]);
+            echo json_encode(['ok' => true]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['ok' => false, 'error' => 'Unknown action']);
