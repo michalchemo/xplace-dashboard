@@ -109,6 +109,8 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
   .btn-request  { background: #6f42c1; color: #fff; }
   .btn-waiting  { background: #e9ecef; color: #888; font-style: italic; }
+  .btn-confirm-reject { background: #b45309; color: #fff; }
+  .btn-newcontent { background: #6f42c1; color: #fff; }
 
   .card-agent-note { font-size: 11px; color: #7a5800; background: #fffbe6; border-top: 1px solid #ffe066; padding: 5px 12px 6px; line-height: 1.5; direction: rtl; }
   .card-agent-note strong { color: #b45309; }
@@ -176,8 +178,8 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
           </div>
         </div>
         <div>
-          <div class="detail-label">הערות פנימיות</div>
-          <textarea class="detail-notes" id="detailNotes" placeholder="הערות פנימיות..."></textarea>
+          <div class="detail-label">הערות פנימיות / הנחיה לסוכן</div>
+          <textarea class="detail-notes" id="detailNotes" placeholder="הערות פנימיות. אם תלחצי 'בקש תוכן חדש', הטקסט כאן יישלח לסוכן כהנחיה לניסוח מחדש"></textarea>
         </div>
       </div>
       <div class="detail-footer" id="detailFooter"></div>
@@ -215,6 +217,9 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
           <?php if ($row['status'] === 'pending'): ?>
             <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">&#8593; הגש</button>
             <button class="btn-dismiss" onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
+            <?php if (!empty($row['agent_notes'])): ?>
+              <button class="btn-confirm-reject" onclick="dismissAgent(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['agent_notes']), ENT_QUOTES) ?>)" title="דחה בלחיצה אחת, סיבת הסוכן נשמרת">&#10003; אשר דחייה</button>
+            <?php endif; ?>
             <?php if ($isPlaceholder): ?>
               <?php if ($row['proposal_requested'] ?? 0): ?>
                 <button class="btn-waiting" disabled>&#9203; ממתין לסוכן</button>
@@ -256,6 +261,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
     <input class="modal-other" id="dismissOther" type="text" placeholder="סיבה אחרת...">
     <div class="modal-actions">
       <button class="btn-dismiss" id="dismissConfirmBtn" onclick="confirmDismiss()">דחה</button>
+      <button class="btn-restore" onclick="dismissNoReason()">דחה ללא סיבה</button>
       <button class="btn-save" onclick="closeDismissModal()">ביטול</button>
     </div>
   </div>
@@ -264,6 +270,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 <script>
 let currentId = null;
 let dismissPendingId = null;
+const CURRENT_FILTER = <?= json_encode($filter) ?>;
 
 // ── Job content fetch ──────────────────────────────────────────
 function loadJobContent(id, url) {
@@ -413,6 +420,16 @@ function loadDetail(id, url, title, text, price, notes, status, description, age
     dis.onclick = () => openDismissModal(id);
     footer.appendChild(dis);
 
+    // One-click confirm of an agent-proposed rejection (no reason needed)
+    if (agentNotes && agentNotes.trim()) {
+      const conf = document.createElement('button');
+      conf.className = 'btn-confirm-reject';
+      conf.textContent = '✓ אשר דחייה';
+      conf.title = 'דחה בלחיצה אחת, סיבת הסוכן נשמרת';
+      conf.onclick = () => dismissAgent(id, agentNotes);
+      footer.appendChild(conf);
+    }
+
     const isPlaceholder = (text === 'ממתין לסקירה' || text === '');
     if (isPlaceholder) {
       if (proposalRequested) {
@@ -429,6 +446,9 @@ function loadDetail(id, url, title, text, price, notes, status, description, age
         reqBtn.onclick = () => requestProposal(id);
         footer.appendChild(reqBtn);
       }
+    } else {
+      // Item already has a draft — let Michal request a rewrite with a guidance note
+      footer.appendChild(makeNewContentBtn(id, proposalRequested));
     }
 
   } else if (status === 'approved') {
@@ -443,6 +463,8 @@ function loadDetail(id, url, title, text, price, notes, status, description, age
     dis.textContent = '✕ דחה';
     dis.onclick = () => openDismissModal(id);
     footer.appendChild(dis);
+
+    footer.appendChild(makeNewContentBtn(id, proposalRequested));
 
   } else {
     const rest = document.createElement('button');
@@ -476,54 +498,19 @@ function requestProposal(id) {
   }
 }
 
-function doActionDetail(action) {
-  if (!currentId) return;
-  const text  = document.getElementById('detailText')?.value ?? '';
-  const price = document.getElementById('detailPrice')?.value ?? 200;
-  const notes = document.getElementById('detailNotes')?.value ?? '';
-  doAction(currentId, action, text, price, notes);
+// ── Feature 1: one-click dismiss ───────────────────────────────
+// Confirm an agent-proposed rejection in one click. The agent's reason is
+// kept as the rejection_reason (feeds learning) but Michal types nothing.
+function dismissAgent(id, reason) {
+  doAction(id, 'dismiss', undefined, undefined, undefined, reason || '');
 }
 
-function doAction(id, action, textOverride, priceOverride, notesOverride, rejectionReason) {
-  const text   = textOverride  !== undefined ? textOverride  : '';
-  const price  = priceOverride !== undefined ? priceOverride : 200;
-  const notes  = notesOverride !== undefined ? notesOverride : '';
-  const reason = rejectionReason || '';
-
-  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reason: reason });
-
-  fetch('action.php', { method: 'POST', body })
-    .then(async r => {
-      const raw = await r.text();
-      try { return JSON.parse(raw); }
-      catch { throw new Error(raw.substring(0, 150)); }
-    })
-    .then(data => {
-      if (data.ok) {
-        const msgs = {
-          approve:          '↑ הועבר לתור השליחה',
-          dismiss:          '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
-          submitted:        '✓ סומן כנשלח',
-          restore:          '↩ הוחזר לממתינות',
-          save:             '✓ נשמר',
-          request_proposal: '✦ בקשה נשלחה – הסוכן ימלא הצעה בריצה הבאה',
-        };
-        showToast(msgs[action] ?? 'עודכן');
-        if (action !== 'save' && action !== 'request_proposal') {
-          const card = document.getElementById('card-' + id);
-          if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
-          if (currentId === id) {
-            document.getElementById('detailContent').style.display = 'none';
-            document.getElementById('detailEmpty').style.display = 'flex';
-            currentId = null;
-          }
-        }
-      } else {
-        alert('שגיאה: ' + (data.error ?? 'unknown'));
-      }
-    })
-    .catch(err => alert('שגיאת רשת:\n' + err.message));
+// Dismiss with no reason at all (from the modal).
+function dismissNoReason() {
+  const id = dismissPendingId; // save before close nulls it
+  closeDismissModal();
+  if (id) doAction(id, 'dismiss', undefined, undefined, undefined, '');
 }
-</script>
-</body>
-</html>
+
+// ── Feature 2: request new content with guidance note ──────────
+function makeNewContentBtn(id, proposalRequest

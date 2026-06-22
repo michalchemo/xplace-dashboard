@@ -1,5 +1,8 @@
 <?php
-// Returns projects where Michal pressed "בקשי הצעה" — agent should draft a proposal on next run.
+// Returns projects where Michal pressed "בקשי הצעה" / "בקש תוכן חדש".
+// The agent drafts (or rewrites) a proposal on the next run.
+// `notes` carries Michal's guidance for the rewrite; `proposal_text` is the
+// existing draft (empty = brand new request, non-empty = regeneration).
 require_once dirname(__DIR__) . '/db.php';
 
 header('Content-Type: application/json');
@@ -13,12 +16,6 @@ if (!str_starts_with($auth, 'Bearer ') || trim(substr($auth, 7)) !== API_KEY) {
 
 $db   = get_db();
 $rows = $db->query(
-    "SELECT project_id, project_title, project_url, agent_notes
+    "SELECT project_id, project_title, project_url, agent_notes, notes, proposal_text
      FROM proposals
-     WHERE proposal_requested = 1
-       AND (proposal_text = '' OR proposal_text IS NULL)
-       AND status = 'pending'
-     ORDER BY updated_at DESC"
-)->fetchAll(PDO::FETCH_ASSOC);
-
-echo json_encode(['ok' => true, 'projects' => $rows]);
+     WHERE proposal_requ

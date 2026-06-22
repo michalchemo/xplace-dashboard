@@ -62,17 +62,11 @@ try {
             break;
 
         case 'request_proposal':
-            $stmt = $db->prepare('UPDATE proposals SET proposal_requested=1, updated_at=NOW() WHERE id=?');
-            $stmt->execute([$id]);
-            echo json_encode(['ok' => true]);
-            break;
-
-        default:
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Unknown action']);
-    }
-
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
-}
+            // Michal requests (re)generated content for this project.
+            // An optional guidance note is saved to the internal `notes` field and
+            // read by the agent via get_proposal_requests.php on the next run.
+            // Status is forced back to 'pending' so an already-approved item
+            // re-enters the review queue for the agent to rewrite.
+            $guidance = trim($_POST['notes'] ?? '');
+            $stmt = $db->prepare(
+  
