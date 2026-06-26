@@ -215,7 +215,9 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
           <a class="btn-xplace" href="<?= htmlspecialchars($row['project_url']) ?>" target="_blank">XPlace &#8599;</a>
 
           <?php if ($row['status'] === 'pending'): ?>
+            <?php if (!$isPlaceholder): ?>
             <button class="btn-submit"  onclick="doAction(<?= $row['id'] ?>, 'approve')">&#8593; הגש</button>
+            <?php endif; ?>
             <button class="btn-dismiss" onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
             <?php if (!empty($row['agent_notes'])): ?>
               <button class="btn-confirm-reject" onclick="dismissAgent(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['agent_notes']), ENT_QUOTES) ?>)" title="דחה בלחיצה אחת, סיבת הסוכן נשמרת">&#10003; אשר דחייה</button>
@@ -513,4 +515,98 @@ function dismissNoReason() {
 }
 
 // ── Feature 2: request new content with guidance note ──────────
-function makeNewContentBtn(id, proposalRequest
+function makeNewContentBtn(id, proposalRequested) {
+  const b = document.createElement('button');
+  if (proposalRequested) {
+    b.className = 'btn-waiting';
+    b.textContent = '⏳ ממתין לסוכן';
+    b.disabled = true;
+  } else {
+    b.className = 'btn-newcontent';
+    b.id = 'detailNewContentBtn';
+    b.textContent = '↻ בקש תוכן חדש';
+    b.title = 'הסוכן ינסח מחדש בריצה הבאה לפי ההערות הפנימיות';
+    b.onclick = () => requestContent(id);
+  }
+  return b;
+}
+
+function requestContent(id) {
+  const notes = document.getElementById('detailNotes')?.value ?? '';
+  const body = new URLSearchParams({ action: 'request_proposal', id, notes });
+  fetch('action.php', { method: 'POST', body })
+    .then(async r => {
+      const raw = await r.text();
+      try { return JSON.parse(raw); }
+      catch { throw new Error(raw.substring(0, 150)); }
+    })
+    .then(data => {
+      if (!data.ok) { alert('שגיאה: ' + (data.error ?? 'unknown')); return; }
+      showToast('↻ נשלחה בקשה לתוכן חדש – הסוכן ינסח מחדש בריצה הבאה');
+      const btn = document.getElementById('detailNewContentBtn');
+      if (btn) { btn.className = 'btn-waiting'; btn.textContent = '⏳ ממתין לסוכן'; btn.disabled = true; btn.onclick = null; }
+      // If the item left the current filter (was approved → now pending), drop the card.
+      if (CURRENT_FILTER !== 'pending' && CURRENT_FILTER !== 'all') {
+        const card = document.getElementById('card-' + id);
+        if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
+        if (currentId === id) {
+          document.getElementById('detailContent').style.display = 'none';
+          document.getElementById('detailEmpty').style.display = 'flex';
+          currentId = null;
+        }
+      }
+    })
+    .catch(err => alert('שגיאת רשת:\n' + err.message));
+}
+
+function doActionDetail(action) {
+  if (!currentId) return;
+  const text  = document.getElementById('detailText')?.value ?? '';
+  const price = document.getElementById('detailPrice')?.value ?? 200;
+  const notes = document.getElementById('detailNotes')?.value ?? '';
+  doAction(currentId, action, text, price, notes);
+}
+
+function doAction(id, action, textOverride, priceOverride, notesOverride, rejectionReason) {
+  const text   = textOverride  !== undefined ? textOverride  : '';
+  const price  = priceOverride !== undefined ? priceOverride : 200;
+  const notes  = notesOverride !== undefined ? notesOverride : '';
+  const reason = rejectionReason || '';
+
+  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reason: reason });
+
+  fetch('action.php', { method: 'POST', body })
+    .then(async r => {
+      const raw = await r.text();
+      try { return JSON.parse(raw); }
+      catch { throw new Error(raw.substring(0, 150)); }
+    })
+    .then(data => {
+      if (data.ok) {
+        const msgs = {
+          approve:          '↑ הועבר לתור השליחה',
+          dismiss:          '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
+          submitted:        '✓ סומן כנשלח',
+          restore:          '↩ הוחזר לממתינות',
+          save:             '✓ נשמר',
+          request_proposal: '✦ בקשה נשלחה – הסוכן ימלא הצעה בריצה הבאה',
+        };
+        showToast(msgs[action] ?? 'עודכן');
+        if (action !== 'save' && action !== 'request_proposal') {
+          const card = document.getElementById('card-' + id);
+          if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
+          if (currentId === id) {
+            document.getElementById('detailContent').style.display = 'none';
+            document.getElementById('detailEmpty').style.display = 'flex';
+            currentId = null;
+          }
+        }
+      } else {
+        alert('שגיאה: ' + (data.error ?? 'unknown'));
+      }
+    })
+    .catch(err => alert('שגיאת רשת:\n' + err.message));
+}
+</script>
+</body>
+</html>
