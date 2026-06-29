@@ -14,6 +14,10 @@ $db = get_db();
 $results = [];
 
 $migrations = [
+    // Add proposal_requested flag if missing (used by request_proposal / fill_proposal / get_proposal_requests)
+    "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS proposal_requested TINYINT(1) NOT NULL DEFAULT 0",
+    // Ensure agent_notes column exists (written by add_proposal, read by get_proposal_requests)
+    "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS agent_notes TEXT NULL",
     // Add withdrawal_done column if missing
     "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS withdrawal_done TINYINT(1) NOT NULL DEFAULT 0",
     // Ensure notes column exists

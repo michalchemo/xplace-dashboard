@@ -18,4 +18,9 @@ $db   = get_db();
 $rows = $db->query(
     "SELECT project_id, project_title, project_url, agent_notes, notes, proposal_text
      FROM proposals
-     WHERE proposal_requ
+     WHERE proposal_requested = 1
+     ORDER BY updated_at DESC
+     LIMIT 60"
+)->fetchAll(PDO::FETCH_ASSOC);
+
+echo json_encode(['ok' => true, 'projects' => $rows]);
