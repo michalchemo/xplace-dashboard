@@ -31,7 +31,7 @@ param(
 # Do NOT stop on ssh stderr — we handle failures per-host.
 $ErrorActionPreference = "Continue"
 $repo  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$files = @("index.php", "action.php", "api/get_proposal_requests.php", "api/delete_proposal.php")
+$files = @("index.php", "action.php", "auth.php", "login.php", "logout.php", "config.sample.php", "api/get_proposal_requests.php", "api/delete_proposal.php")
 $candidates = @("46.101.85.13", "167.99.130.154", "161.35.78.39", "164.90.223.113")
 
 $keyOpt = ""
@@ -84,12 +84,12 @@ $sshBase = "ssh $keyOpt -o StrictHostKeyChecking=accept-new $User@$ServerIP"
 # 2) Backup current files on the server --------------------------------
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 Write-Host "Backing up current files -> $RemoteDir/_backup_$stamp" -ForegroundColor Cyan
-cmd /c "$sshBase ""mkdir -p $RemoteDir/_backup_$stamp; cd $RemoteDir; for f in index.php action.php api/get_proposal_requests.php api/delete_proposal.php; do [ -f \$f ] && cp \$f _backup_$stamp/\$(echo \$f | tr / _); done; echo backup-done"""
+cmd /c "$sshBase ""mkdir -p $RemoteDir/_backup_$stamp; cd $RemoteDir; for f in index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php; do [ -f \$f ] && cp \$f _backup_$stamp/\$(echo \$f | tr / _); done; echo backup-done"""
 
 # 3) Deploy ------------------------------------------------------------
 if ($UseGit) {
   Write-Host "Deploying with git..." -ForegroundColor Cyan
-  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php api/get_proposal_requests.php api/delete_proposal.php; echo git-deploy-done"""
+  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php; echo git-deploy-done"""
 } else {
   Write-Host "Copying files via scp..." -ForegroundColor Cyan
   foreach ($f in $files) {
@@ -105,5 +105,4 @@ Write-Host "Verifying new code on the server..." -ForegroundColor Cyan
 cmd /c "$sshBase ""echo -n 'index.php btn-newcontent: '; grep -c btn-newcontent $RemoteDir/index.php; echo -n 'action.php notes-coalesce: '; grep -c 'COALESCE(NULLIF' $RemoteDir/action.php; echo -n 'get_proposal_requests cols: '; grep -c 'agent_notes, notes, proposal_text' $RemoteDir/api/get_proposal_requests.php"""
 
 Write-Host ""
-Write-Host "Done. Roll back any time from: $RemoteDir/_backup_$stamp" -ForegroundColor Green
-Write-Host "Hard-refresh the dashboard (Ctrl+F5) to see the new buttons." -ForegroundColor Green
+Write-Host "Done. Roll back any ti

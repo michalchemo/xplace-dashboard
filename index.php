@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/auth.php';   // login gate (active once a password is set in config.php)
 header('Content-Type: text/html; charset=UTF-8');
 require_once __DIR__ . '/db.php';
 
@@ -120,14 +121,46 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
   .toast.show { opacity: 1; }
 
-  @media (max-width: 860px) { .detail-panel { display: none; } .card-list { flex: 1; } }
+  /* ---- Mobile / small screens: stack the two columns instead of hiding detail ---- */
+  @media (max-width: 860px) {
+    html, body { height: auto; min-height: 100vh; }
+    body { overflow-y: auto; }
+
+    header { padding: 10px 14px; }
+    header h1 { font-size: 15px; }
+
+    /* status tabs scroll sideways instead of overflowing */
+    nav { padding: 0 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    nav::-webkit-scrollbar { height: 0; }
+    nav a { flex: 0 0 auto; padding: 10px 10px; white-space: nowrap; font-size: 13px; }
+
+    /* stack: cards on top, detail panel below */
+    .workspace { flex-direction: column; overflow: visible; }
+    .card-list { order: 1; flex: none; width: 100%; padding: 12px; overflow-y: visible; }
+    .detail-panel { order: 2; flex: none; width: 100%; overflow: visible; border-top: 1px solid #e0e0e0; }
+    .detail-empty { padding: 24px; text-align: center; }
+    .card { width: 100%; }
+
+    /* modal fits the screen */
+    .modal { width: 95vw; max-width: 95vw; padding: 18px; }
+    .reason-pills { gap: 6px; }
+  }
+  @media (max-width: 480px) {
+    header h1 { font-size: 14px; }
+    nav a { font-size: 12px; padding: 9px 8px; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Nintay &middot; XPlace Proposals</h1>
-  <span style="font-size:12px;opacity:.5">ממשק ניהול הצעות</span>
+  <span style="display:flex;align-items:center;gap:14px">
+    <span style="font-size:12px;opacity:.5">ממשק ניהול הצעות</span>
+    <?php if (!empty($_SESSION['dash_user'])): ?>
+      <a href="logout.php" style="color:#fff;font-size:12px;opacity:.7;text-decoration:none">יציאה</a>
+    <?php endif; ?>
+  </span>
 </header>
 
 <nav>
@@ -573,40 +606,4 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
   const notes  = notesOverride !== undefined ? notesOverride : '';
   const reason = rejectionReason || '';
 
-  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reason: reason });
-
-  fetch('action.php', { method: 'POST', body })
-    .then(async r => {
-      const raw = await r.text();
-      try { return JSON.parse(raw); }
-      catch { throw new Error(raw.substring(0, 150)); }
-    })
-    .then(data => {
-      if (data.ok) {
-        const msgs = {
-          approve:          '↑ הועבר לתור השליחה',
-          dismiss:          '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
-          submitted:        '✓ סומן כנשלח',
-          restore:          '↩ הוחזר לממתינות',
-          save:             '✓ נשמר',
-          request_proposal: '✦ בקשה נשלחה – הסוכן ימלא הצעה בריצה הבאה',
-        };
-        showToast(msgs[action] ?? 'עודכן');
-        if (action !== 'save' && action !== 'request_proposal') {
-          const card = document.getElementById('card-' + id);
-          if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
-          if (currentId === id) {
-            document.getElementById('detailContent').style.display = 'none';
-            document.getElementById('detailEmpty').style.display = 'flex';
-            currentId = null;
-          }
-        }
-      } else {
-        alert('שגיאה: ' + (data.error ?? 'unknown'));
-      }
-    })
-    .catch(err => alert('שגיאת רשת:\n' + err.message));
-}
-</script>
-</body>
-</html>
+  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reas

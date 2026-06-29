@@ -4,6 +4,26 @@ require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json');
 
+// --- Auth ---
+// Accept a logged-in dashboard session OR a valid Bearer API key (used by the
+// scheduled agent). The gate is enforced only once a password is configured in
+// config.php, so existing behaviour is unchanged until then.
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$__gate_active = defined('DASH_PASS_HASH')
+    && DASH_PASS_HASH !== '' && DASH_PASS_HASH !== 'replace_with_password_hash';
+if ($__gate_active) {
+    $__auth      = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $__validKey  = str_starts_with($__auth, 'Bearer ') && trim(substr($__auth, 7)) === API_KEY;
+    $__validSess = !empty($_SESSION['dash_user']);
+    if (!$__validKey && !$__validSess) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
+        exit;
+    }
+}
+
 $action = $_POST['action'] ?? '';
 $id     = (int)($_POST['id'] ?? 0);
 $db     = get_db();
@@ -87,27 +107,4 @@ try {
             // Michal requests (re)generated content for this project.
             // An optional guidance note is saved to the internal `notes` field and
             // read by the agent via get_proposal_requests.php on the next run.
-            // Status is forced back to 'pending' so an already-approved item
-            // re-enters the review queue for the agent to rewrite.
-            $guidance = trim($_POST['notes'] ?? '');
-            $stmt = $db->prepare(
-                "UPDATE proposals
-                 SET status = 'pending',
-                     proposal_requested = 1,
-                     notes = COALESCE(NULLIF(?, ''), notes),
-                     updated_at = NOW()
-                 WHERE id = ?"
-            );
-            $stmt->execute([$guidance, $id]);
-            echo json_encode(['ok' => true]);
-            break;
-
-        default:
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Unknown action']);
-    }
-
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
-}
+            // Status is forced back to 'pending' s
