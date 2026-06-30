@@ -606,4 +606,38 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
   const notes  = notesOverride !== undefined ? notesOverride : '';
   const reason = rejectionReason || '';
 
-  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reas
+  const body = new URLSearchParams({ action, id, proposal_text: text, price, notes, rejection_reason: reason });
+
+  fetch('action.php', { method: 'POST', body })
+    .then(async r => {
+      const raw = await r.text();
+      try { return JSON.parse(raw); }
+      catch { throw new Error(raw.substring(0, 150)); }
+    })
+    .then(data => {
+      if (data.ok) {
+        const msgs = {
+          approve:          '↑ הועבר לתור השליחה',
+          dismiss:          '✕ נדחה – יוסר מ-XPlace בריצה הבאה',
+          submitted:        '✓ סומן כנשלח',
+          restore:          '↩ הוחזר לממתינות',
+          save:             '✓ נשמר',
+          request_proposal: '✦ בקשה נשלחה – הסוכן ימלא הצעה בריצה הבאה',
+        };
+        showToast(msgs[action] ?? 'עודכן');
+        if (action !== 'save' && action !== 'request_proposal') {
+          const card = document.getElementById('card-' + id);
+          if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
+          if (currentId === id) {
+            document.getElementById('detailContent').style.display = 'none';
+            document.getElementById('detailEmpty').style.display = 'flex';
+            currentId = null;
+          }
+        }
+      } else {
+        alert('שגיאה: ' + (data.error ?? 'unknown'));
+      }
+    })
+    .catch(err => alert('שגיאת רשת:\n' + err.message));
+}
+</script>
