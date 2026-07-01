@@ -31,7 +31,7 @@ param(
 # Do NOT stop on ssh stderr — we handle failures per-host.
 $ErrorActionPreference = "Continue"
 $repo  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$files = @("index.php", "action.php", "auth.php", "login.php", "logout.php", "config.sample.php", "api/get_proposal_requests.php", "api/delete_proposal.php")
+$files = @("index.php", "action.php", "auth.php", "login.php", "logout.php", "config.sample.php", "api/get_proposal_requests.php", "api/delete_proposal.php", "api/get_dashboard_status.php")
 $candidates = @("46.101.85.13", "167.99.130.154", "161.35.78.39", "164.90.223.113")
 
 $keyOpt = ""
@@ -89,7 +89,7 @@ cmd /c "$sshBase ""mkdir -p $RemoteDir/_backup_$stamp; cd $RemoteDir; for f in i
 # 3) Deploy ------------------------------------------------------------
 if ($UseGit) {
   Write-Host "Deploying with git..." -ForegroundColor Cyan
-  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php; echo git-deploy-done"""
+  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php api/get_dashboard_status.php; echo git-deploy-done"""
 } else {
   Write-Host "Copying files via scp..." -ForegroundColor Cyan
   foreach ($f in $files) {

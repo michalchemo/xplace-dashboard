@@ -93,6 +93,18 @@ GET /api/get_approved.php
 Authorization: Bearer YOUR_API_KEY
 ```
 
+### Get dashboard status (change-gate check)
+
+```
+GET /api/get_dashboard_status.php
+Authorization: Bearer YOUR_API_KEY
+```
+
+Returns `{ known_project_ids: [...], pending_count, approved_count }`. The scheduled
+task calls this first and only runs a full scan/classify/WhatsApp cycle if there are
+project IDs on XPlace not in `known_project_ids`, or if withdrawals/proposal-requests/
+approved items are waiting. Keeps repeat runs cheap when nothing changed.
+
 ---
 
 ## File structure
