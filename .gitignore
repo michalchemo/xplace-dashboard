@@ -1,3 +1,2 @@
 config.php
-.DS_Store
-*.log
+SECRETS.local.md
