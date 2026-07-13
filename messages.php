@@ -53,6 +53,7 @@ function he_when(?string $dt): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nintay &ndash; הודעות</title>
+<?php include __DIR__ . '/partials/favicon.php'; ?>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Arial, sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; }

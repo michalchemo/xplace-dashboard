@@ -22,6 +22,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nintay &ndash; XPlace Proposals</title>
+<?php include __DIR__ . '/partials/favicon.php'; ?>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Arial, sans-serif; background: #f0f2f5; color: #222; height: 100vh; display: flex; flex-direction: column; }
@@ -648,18 +649,4 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
           const card = document.getElementById('card-' + id);
           if (card) { card.style.transition = 'opacity .4s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 450); }
           if (currentId === id) {
-            document.getElementById('detailContent').style.display = 'none';
-            document.getElementById('detailEmpty').style.display = 'flex';
-            currentId = null;
-          }
-        }
-      } else {
-        alert('שגיאה: ' + (data.error ?? 'unknown'));
-      }
-    })
-    .catch(err => alert('שגיאת רשת:\n' + err.message));
-}
-</script>
-<?php include __DIR__ . '/footer.php'; ?>
-</body>
-</html>
+            document.getElementById('detailContent')

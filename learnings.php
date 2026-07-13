@@ -28,6 +28,7 @@ $OUTCOMES = [
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nintay &ndash; לקחים</title>
+<?php include __DIR__ . '/partials/favicon.php'; ?>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Arial, sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; }
@@ -223,14 +224,4 @@ async function confirmLearning(id){
     const cb=c.querySelector('.btn-confirm'); if(cb)cb.remove();
   }catch(e){alert(e.message);}
 }
-async function toggleActive(id){ try{ await post({action:'toggle_active',id}); location.reload(); }catch(e){alert(e.message);} }
-async function delLearning(id){
-  if(!confirm('למחוק את הלקח?'))return;
-  try{ await post({action:'delete',id});
-    const c=document.getElementById('lrow-'+id); c.style.transition='opacity .3s'; c.style.opacity='0'; setTimeout(()=>c.remove(),300);
-  }catch(e){alert(e.message);}
-}
-</script>
-<?php include __DIR__ . '/footer.php'; ?>
-</body>
-</html>
+async function toggleActive(id){ try{ await post({action:'toggle_active',id}); location.reload(); }catch(e
