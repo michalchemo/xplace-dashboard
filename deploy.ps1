@@ -31,7 +31,7 @@ param(
 # Do NOT stop on ssh stderr — we handle failures per-host.
 $ErrorActionPreference = "Continue"
 $repo  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$files = @("index.php", "action.php", "auth.php", "login.php", "logout.php", "config.sample.php", "api/get_proposal_requests.php", "api/delete_proposal.php", "api/get_dashboard_status.php")
+$files = @("index.php", "action.php", "auth.php", "login.php", "logout.php", "config.sample.php", "learnings.php", "learning_action.php", "messages.php", "message_action.php", "api/get_proposal_requests.php", "api/delete_proposal.php", "api/get_dashboard_status.php", "api/set_outcome.php", "api/get_learnings.php", "api/get_outcome_candidates.php", "api/migrate.php", "api/get_job_content.php", "api/add_proposal.php", "api/fill_proposal.php", "api/get_approved.php", "api/get_rejection_patterns.php", "api/get_withdrawals.php", "api/sync_messages.php", "api/get_messages.php", "api/mark_messages_alerted.php", "footer.php")
 $candidates = @("46.101.85.13", "167.99.130.154", "161.35.78.39", "164.90.223.113")
 
 $keyOpt = ""
@@ -84,12 +84,12 @@ $sshBase = "ssh $keyOpt -o StrictHostKeyChecking=accept-new $User@$ServerIP"
 # 2) Backup current files on the server --------------------------------
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 Write-Host "Backing up current files -> $RemoteDir/_backup_$stamp" -ForegroundColor Cyan
-cmd /c "$sshBase ""mkdir -p $RemoteDir/_backup_$stamp; cd $RemoteDir; for f in index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php api/get_dashboard_status.php; do [ -f \$f ] && cp \$f _backup_$stamp/\$(echo \$f | tr / _); done; echo backup-done"""
+cmd /c "$sshBase ""mkdir -p $RemoteDir/_backup_$stamp $RemoteDir/partials; cd $RemoteDir; for f in index.php action.php auth.php login.php logout.php config.sample.php footer.php learnings.php learning_action.php messages.php message_action.php api/get_proposal_requests.php api/delete_proposal.php api/get_dashboard_status.php api/set_outcome.php api/get_learnings.php api/get_outcome_candidates.php api/sync_messages.php api/get_messages.php api/mark_messages_alerted.php api/migrate.php; do [ -f \$f ] && cp \$f _backup_$stamp/\$(echo \$f | tr / _); done; echo backup-done"""
 
 # 3) Deploy ------------------------------------------------------------
 if ($UseGit) {
   Write-Host "Deploying with git..." -ForegroundColor Cyan
-  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php auth.php login.php logout.php config.sample.php api/get_proposal_requests.php api/delete_proposal.php api/get_dashboard_status.php; echo git-deploy-done"""
+  cmd /c "$sshBase ""cd $RemoteDir; git fetch origin; git checkout -f origin/main -- index.php action.php auth.php login.php logout.php config.sample.php footer.php learnings.php learning_action.php messages.php message_action.php api/get_proposal_requests.php api/delete_proposal.php api/get_dashboard_status.php api/set_outcome.php api/get_learnings.php api/get_outcome_candidates.php api/sync_messages.php api/get_messages.php api/mark_messages_alerted.php api/migrate.php; echo git-deploy-done"""
 } else {
   Write-Host "Copying files via scp..." -ForegroundColor Cyan
   foreach ($f in $files) {

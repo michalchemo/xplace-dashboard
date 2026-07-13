@@ -1,2 +1,5 @@
 config.php
 SECRETS.local.md
+drafts/
+.DS_Store
+*.log

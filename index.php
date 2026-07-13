@@ -172,6 +172,22 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <?php endif; ?>
     </a>
   <?php endforeach; ?>
+  <?php
+    $learnCount = 0; $draftLearn = 0; $msgWaiting = 0;
+    try {
+        $learnCount = (int)$db->query("SELECT COUNT(*) FROM learnings")->fetchColumn();
+        $draftLearn = (int)$db->query("SELECT COUNT(*) FROM learnings WHERE confirmed=0")->fetchColumn();
+    } catch (Exception $e) { /* table not migrated yet */ }
+    try {
+        $msgWaiting = (int)$db->query("SELECT COUNT(*) FROM messages WHERE status='needs_reply'")->fetchColumn();
+    } catch (Exception $e) { /* table not migrated yet */ }
+  ?>
+  <a href="messages.php" style="margin-inline-start:auto">הודעות
+    <?php if ($msgWaiting): ?><span class="badge" style="background:#dc3545;color:#fff"><?= $msgWaiting ?></span><?php endif; ?>
+  </a>
+  <a href="learnings.php">לקחים
+    <?php if ($learnCount): ?><span class="badge" style="<?= $draftLearn ? 'background:#b45309;color:#fff' : '' ?>"><?= $draftLearn ? $draftLearn.'/'.$learnCount : $learnCount ?></span><?php endif; ?>
+  </a>
 </nav>
 
 <div class="workspace">
@@ -394,7 +410,10 @@ function loadDetail(id, url, title, text, price, notes, status, description, age
   document.getElementById('detailLink').href = url;
 
   const box = document.getElementById('jobContentBox');
-  if (description && description.length > 20) {
+  // XPlace redesign 07/2026: old cached descriptions may be the site's generic
+  // marketing boilerplate — treat those as missing so we re-fetch the real text.
+  const isGenericDesc = description && (description.includes('פרסמו פרויקט ב') || description.includes('עמלות תיווך') || description.includes('להשוואת הצעות'));
+  if (description && description.length > 20 && !isGenericDesc) {
     box.className = 'job-content-box';
     box.textContent = description;
   } else {
@@ -641,3 +660,6 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
     .catch(err => alert('שגיאת רשת:\n' + err.message));
 }
 </script>
+<?php include __DIR__ . '/footer.php'; ?>
+</body>
+</html>

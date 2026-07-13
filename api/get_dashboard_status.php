@@ -21,11 +21,21 @@ $db = get_db();
 
 $known_project_ids = $db->query('SELECT project_id FROM proposals')->fetchAll(PDO::FETCH_COLUMN);
 $pending_count      = (int)$db->query("SELECT COUNT(*) FROM proposals WHERE status = 'pending'")->fetchColumn();
+// pending_real_count = drafts genuinely awaiting Michal's approval:
+// status=pending AND a real proposal was written (exclude empty + placeholder).
+// This is the number the WhatsApp header line "[N] פרויקטים ממתינים לאישורך" must use.
+$pending_real_count = (int)$db->query("
+    SELECT COUNT(*) FROM proposals
+    WHERE status = 'pending'
+      AND proposal_text <> ''
+      AND proposal_text <> 'ממתין לסקירה'
+")->fetchColumn();
 $approved_count     = (int)$db->query("SELECT COUNT(*) FROM proposals WHERE status = 'approved'")->fetchColumn();
 
 echo json_encode([
-    'ok'                => true,
-    'known_project_ids' => $known_project_ids,
-    'pending_count'     => $pending_count,
-    'approved_count'    => $approved_count,
+    'ok'                 => true,
+    'known_project_ids'  => $known_project_ids,
+    'pending_count'      => $pending_count,
+    'pending_real_count' => $pending_real_count,
+    'approved_count'     => $approved_count,
 ]);
