@@ -22,6 +22,9 @@ $migrations = [
     "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS withdrawal_done TINYINT(1) NOT NULL DEFAULT 0",
     // Ensure notes column exists
     "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS notes TEXT NULL",
+    // Client name (shown prominently on pending/submitted cards). Sent by the agent
+    // via add_proposal.php; falls back to messages.participant in the UI.
+    "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_name VARCHAR(255) NULL",
     // Ensure updated_at exists
     "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
     // Learnings table — durable post-submission outcomes the agent learns from.

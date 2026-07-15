@@ -52,7 +52,7 @@ xplace-dashboard/
 ├── schema.sql          — יצירת ה-DB (רץ פעם אחת)
 ├── deploy.ps1          — סקריפט דיפלוי לדרופלט
 └── api/                — endpoints שהסוכן קורא (Bearer key)
-    ├── add_proposal.php          — POST: הוספת טיוטה
+    ├── add_proposal.php          — POST: הוספת טיוטה (כולל client_name אופציונלי; קיים=backfill לשם הלקוח בלבד)
     ├── fill_proposal.php         — POST: מילוי/כתיבה מחדש של הצעה שמיכל ביקשה
     ├── delete_proposal.php       — POST: מחיקה מהתור
     ├── get_approved.php          — GET: הצעות מאושרות להגשה
@@ -107,9 +107,11 @@ xplace-dashboard/
 
 - **Host:** DigitalOcean droplet, LAMP. RemoteDir: `/var/www/xplace-dashboard`. **IP הדרופלט: 164.90.223.113** (hostname: xplace; הדומיין מאחורי Cloudflare אז DNS לא מגלה אותו).
 - **Domain של ה-API/דשבורד:** https://xplace.nintay.com
-- **דיפלוי:** מהמחשב של מיכל: `powershell -ExecutionPolicy Bypass -File .\deploy.ps1`
-  - הסקריפט מזהה אוטומטית את הדרופלט מרשימת IP מועמדים, מגבה קבצים (תיקיית `_backup_<timestamp>`), מעלה ב-scp (או `-UseGit`), ומוודא. שום דבר לא נמחק.
-  - IP מועמדים בסקריפט: 46.101.85.13, 167.99.130.154, 161.35.78.39, 164.90.223.113.
+- **דיפלוי (מ-15/07/26): אוטומטי לגמרי — commit + push ל-main וזהו.**
+  - cron על הדרופלט מריץ `/usr/local/bin/xplace-autodeploy.sh` כל דקה: `git fetch` → אם יש commit חדש → `git reset --hard origin/main` → מריץ `api/migrate.php` (idempotent). המקור: `deploy/autodeploy.sh` בריפו (מעדכן את עצמו).
+  - `config.php` gitignored ולא נפגע. לוג: `/var/log/xplace-autodeploy.log`.
+  - זרימה: עריכה מקומית → `git add/commit/push` → תוך דקה חי ב-https://xplace.nintay.com.
+  - `deploy.ps1` הישן (scp) נשאר כגיבוי ידני בלבד.
 - **הגנה:** ה-UI מאחורי login (username+password). ה-API endpoints מאחורי `Authorization: Bearer <API_KEY>`.
 - **API key (בשימוש הסוכן):** לא נשמר כאן. הערך נמצא ב-`SECRETS.local.md` (gitignored) ובזיכרון של Claude.
 
@@ -202,7 +204,7 @@ SKILL.md של הסוכן נמצא ב: `C:\Users\micha\Claude\Scheduled\xplace-pr
 ## 9. לעבודה על שדרוגים מכאן
 
 - שינוי לוגיקת הסוכן → עורכים את `C:\Users\micha\Claude\Scheduled\xplace-proposals-agent\SKILL.md`.
-- שינוי בקוד הדשבורד/API → עורכים כאן ואז `deploy.ps1` להעלאה לדרופלט.
+- שינוי בקוד הדשבורד/API → עורכים כאן, `git commit + push` — הדרופלט מושך אוטומטית תוך דקה.
 - שינוי סכימת DB → מוסיפים migration ב-`api/migrate.php` וקוראים לו פעם אחת עם ה-Bearer key.
 - רישום/עריכת לקח → הכי פשוט דרך העמוד `learnings.php` (מיכל). תכנותית: POST ל-`set_outcome.php` עם `{project_id, outcome, lesson, price?, confirmed?}` (upsert) דרך הדפדפן (Bearer), כי הסנדבוקס חסום מ-xplace.nintay.com.
 - קובץ זה הוא הסינגל-סורס לקונטקסט. לעדכן אותו כשמשתנה: לוגיקה, שרת, מפתחות, כללי כתיבה, או מבנה DB.

@@ -9,7 +9,24 @@ $valid  = ['pending', 'approved', 'to_withdraw', 'submitted', 'all'];
 if (!in_array($filter, $valid)) $filter = 'pending';
 
 $where = $filter === 'all' ? '' : "WHERE status = '$filter'";
-$rows  = $db->query("SELECT * FROM proposals $where ORDER BY created_at DESC")->fetchAll();
+// Client name: prefer proposals.client_name (agent-supplied), fall back to the chat
+// participant from the messages table. try/catch keeps the page alive until the
+// migration adds the client_name column.
+try {
+    $rows = $db->query("
+        SELECT p.*, COALESCE(NULLIF(p.client_name, ''), m.participant) AS client_display
+        FROM proposals p
+        LEFT JOIN (
+            SELECT project_id, MAX(participant) AS participant
+            FROM messages
+            WHERE participant IS NOT NULL AND participant <> ''
+            GROUP BY project_id
+        ) m ON m.project_id = p.project_id
+        $where ORDER BY p.created_at DESC")->fetchAll();
+} catch (Exception $e) {
+    $rows = $db->query("SELECT * FROM proposals $where ORDER BY created_at DESC")->fetchAll();
+    foreach ($rows as &$r) { $r['client_display'] = null; } unset($r);
+}
 
 $counts = [];
 foreach (['pending','approved','to_withdraw','submitted'] as $s) {
@@ -90,6 +107,10 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .card-header:hover { background: #f8f9fa; }
   .card-title { font-size: 13px; font-weight: 600; color: #1a1a2e; line-height: 1.4; }
   .card-meta { font-size: 11px; color: #999; margin-top: 2px; }
+  .card-client { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; background: #f3e8ff; color: #6f42c1; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 10px; }
+  .detail-client { display: inline-flex; align-items: center; gap: 4px; background: #f3e8ff; color: #6f42c1; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 10px; margin-bottom: 4px; }
+  .btn-lesson { background: #b45309; color: #fff; text-decoration: none; display: inline-flex; align-items: center; padding: 5px 11px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .btn-lesson:hover { opacity: .85; }
   .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: 600; flex-shrink: 0; }
   .status-pending   { background: #fff3cd; color: #856404; }
   .status-approved  { background: #d1e7dd; color: #0a3622; }
@@ -204,6 +225,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
     </div>
     <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="detail-header">
+        <div class="detail-client" id="detailClient" style="display:none"></div>
         <h2 id="detailTitle"></h2>
         <a id="detailLink" href="#" target="_blank">פתח ב-XPlace &#8599;</a>
       </div>
@@ -247,9 +269,12 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <div class="card" id="card-<?= $row['id'] ?>">
 
         <div class="card-header"
-             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['agent_notes'] ?? ''), ENT_QUOTES) ?>, <?= (int)($row['proposal_requested'] ?? 0) ?>)">
+             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['agent_notes'] ?? ''), ENT_QUOTES) ?>, <?= (int)($row['proposal_requested'] ?? 0) ?>, <?= htmlspecialchars(json_encode($row['client_display'] ?? ''), ENT_QUOTES) ?>)">
           <div style="flex:1;min-width:0">
             <div class="card-title"><?= htmlspecialchars($row['project_title']) ?></div>
+            <?php if (!empty($row['client_display'])): ?>
+              <div class="card-client">&#128100; <?= htmlspecialchars($row['client_display']) ?></div>
+            <?php endif; ?>
             <div class="card-meta">פרויקט #<?= htmlspecialchars($row['project_id']) ?> &middot; <?= date('d/m H:i', strtotime($row['created_at'])) ?></div>
           </div>
           <span class="status-badge status-<?= $row['status'] ?>">
@@ -285,6 +310,9 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
             <button class="btn-dismiss"   onclick="openDismissModal(<?= $row['id'] ?>)">&#10005; דחה</button>
 
           <?php elseif (in_array($row['status'], ['to_withdraw','submitted'])): ?>
+            <?php if ($row['status'] === 'submitted'): ?>
+              <a class="btn-lesson" href="learnings.php?from=<?= $row['id'] ?>">&#9998; הוסף לקח</a>
+            <?php endif; ?>
             <button class="btn-restore" onclick="doAction(<?= $row['id'] ?>, 'restore')">&#8617; החזר לממתינות</button>
           <?php endif; ?>
         </div>
@@ -394,8 +422,17 @@ function clearDetailPlaceholder() {
   }
 }
 
-function loadDetail(id, url, title, text, price, notes, status, description, agentNotes, proposalRequested) {
+function loadDetail(id, url, title, text, price, notes, status, description, agentNotes, proposalRequested, clientName) {
   currentId = id;
+
+  // client name chip
+  const clientChip = document.getElementById('detailClient');
+  if (clientName && clientName.trim()) {
+    clientChip.textContent = '👤 ' + clientName;
+    clientChip.style.display = '';
+  } else {
+    clientChip.style.display = 'none';
+  }
 
   // highlight card
   document.querySelectorAll('.card').forEach(c => c.classList.remove('active-preview'));
@@ -522,6 +559,13 @@ function loadDetail(id, url, title, text, price, notes, status, description, age
     footer.appendChild(makeNewContentBtn(id, proposalRequested));
 
   } else {
+    if (status === 'submitted') {
+      const les = document.createElement('a');
+      les.className = 'btn-lesson';
+      les.textContent = '✎ הוסף לקח';
+      les.href = 'learnings.php?from=' + id;
+      footer.appendChild(les);
+    }
     const rest = document.createElement('button');
     rest.className = 'btn-restore';
     rest.textContent = '↩ החזר לממתינות';

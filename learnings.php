@@ -12,6 +12,18 @@ $rows = $db->query(
 $draftCount = 0;
 foreach ($rows as $r) { if ((int)$r['confirmed'] === 0) $draftCount++; }
 
+// Quick-add from a submitted proposal: learnings.php?from=<proposal_id>
+// Prefills the add box with the proposal's project id, title, url and price.
+$prefill = null;
+$fromId  = (int)($_GET['from'] ?? 0);
+if ($fromId) {
+    try {
+        $st = $db->prepare('SELECT * FROM proposals WHERE id = ?');
+        $st->execute([$fromId]);
+        $prefill = $st->fetch() ?: null;
+    } catch (Exception $e) { $prefill = null; }
+}
+
 $OUTCOMES = [
     'rejected_price' => 'נדחה (מחיר גבוה)',
     'advanced'       => 'התקדם',
@@ -109,7 +121,14 @@ $OUTCOMES = [
   </div>
 
   <!-- Add new learning -->
-  <div class="addbox">
+  <div class="addbox" id="addbox" <?= $prefill ? 'style="border:2px solid #b45309;box-shadow:0 0 0 3px #ffe0b2"' : '' ?>>
+    <?php if ($prefill): ?>
+      <div style="background:#fff4e5;color:#b45309;font-size:12px;font-weight:600;border-radius:6px;padding:6px 10px;margin-bottom:10px">
+        לקח עבור: <?= htmlspecialchars($prefill['project_title']) ?>
+        <?php if (!empty($prefill['client_name'])): ?> &middot; לקוח: <?= htmlspecialchars($prefill['client_name']) ?><?php endif; ?>
+        <?php if (!empty($prefill['project_url'])): ?><a href="<?= htmlspecialchars($prefill['project_url']) ?>" target="_blank" style="color:#b45309;margin-inline-start:6px">XPlace ↗</a><?php endif; ?>
+      </div>
+    <?php endif; ?>
     <h3>+ הוספת לקח ידני</h3>
     <div class="fields">
       <div class="f-outcome">
@@ -122,11 +141,11 @@ $OUTCOMES = [
       </div>
       <div class="f-price">
         <label>מחיר (אופ')</label>
-        <input type="number" id="add_price" min="0" max="5000" step="10" placeholder="—">
+        <input type="number" id="add_price" min="0" max="5000" step="10" placeholder="—" value="<?= $prefill && $prefill['price'] !== null ? (int)$prefill['price'] : '' ?>">
       </div>
       <div style="flex:1;min-width:160px">
         <label>project_id (אופ')</label>
-        <input type="number" id="add_pid" style="width:100%" placeholder="למשל 214461">
+        <input type="number" id="add_pid" style="width:100%" placeholder="למשל 214461" value="<?= $prefill ? htmlspecialchars($prefill['project_id']) : '' ?>">
       </div>
     </div>
     <label>הלקח</label>
@@ -189,6 +208,14 @@ $OUTCOMES = [
 
 <div class="toast" id="toast"></div>
 <script>
+const PREFILL_TITLE = <?= json_encode($prefill['project_title'] ?? '') ?>;
+const PREFILL_URL   = <?= json_encode($prefill['project_url'] ?? '') ?>;
+<?php if ($prefill): ?>
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('addbox').scrollIntoView({behavior:'smooth', block:'start'});
+  document.getElementById('add_lesson').focus();
+});
+<?php endif; ?>
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 async function post(body){
   const r = await fetch('learning_action.php',{method:'POST',body:new URLSearchParams(body)});
@@ -201,8 +228,8 @@ async function addLearning(){
   const outcome=document.getElementById('add_outcome').value;
   const lesson=document.getElementById('add_lesson').value.trim();
   if(!lesson){alert('כתבי את הלקח');return;}
-  try{ await post({action:'add',outcome,lesson,price:document.getElementById('add_price').value,project_id:document.getElementById('add_pid').value});
-    toast('נוסף'); setTimeout(()=>location.reload(),600);
+  try{ await post({action:'add',outcome,lesson,price:document.getElementById('add_price').value,project_id:document.getElementById('add_pid').value,project_title:PREFILL_TITLE,project_url:PREFILL_URL});
+    toast('נוסף'); setTimeout(()=>location.replace('learnings.php'),600);
   }catch(e){alert(e.message);}
 }
 async function saveLearning(id){
@@ -224,4 +251,14 @@ async function confirmLearning(id){
     const cb=c.querySelector('.btn-confirm'); if(cb)cb.remove();
   }catch(e){alert(e.message);}
 }
-async function toggleActive(id){ try{ await post({action:'toggle_active',id}); location.reload(); }catch(e
+async function toggleActive(id){ try{ await post({action:'toggle_active',id}); location.reload(); }catch(e){alert(e.message);} }
+async function delLearning(id){
+  if(!confirm('למחוק את הלקח?'))return;
+  try{ await post({action:'delete',id});
+    const c=document.getElementById('lrow-'+id); c.style.transition='opacity .3s'; c.style.opacity='0'; setTimeout(()=>c.remove(),300);
+  }catch(e){alert(e.message);}
+}
+</script>
+<?php include __DIR__ . '/footer.php'; ?>
+</body>
+</html>
