@@ -1,5 +1,7 @@
 # XPlace Proposals Dashboard
 
+**Deploy:** push to `main` — the droplet auto-pulls within a minute (cron: `/usr/local/bin/xplace-autodeploy.sh`, source: `deploy/autodeploy.sh`, log: `/var/log/xplace-autodeploy.log`).
+
 PHP + MySQL dashboard for reviewing and managing XPlace proposal drafts before submission.
 
 ## Stack
