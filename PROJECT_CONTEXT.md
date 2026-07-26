@@ -173,6 +173,9 @@ SKILL.md של הסוכן נמצא ב: `C:\Users\micha\Claude\Scheduled\xplace-pr
 
 ## 8. לקחים / החלטות פתוחות
 
+- **26/07: באג שם לקוח תוקן.** הסוכן שלח את השם של מיכל עצמה ("Michal Chemo") כ-`client_name` בכל השורות (גרד את שם המשתמש המחובר מה-header במקום את בלוק הלקוח). תוקן בשלוש שכבות: (1) גארד ב-`add_proposal.php` ו-`sync_messages.php` שדוחה את הזהות של מיכל (Michal Chemo / מיכל חמו / nintay), (2) ניקוי ה-DB (client_name='Michal Chemo' אופס ל-NULL, ה-UI נופל ל-participant מטבלת messages שהוא נכון), (3) עדכון הוראת client_name ב-SKILL.md — לקחת רק מבלוק הלקוח ליד "לצפייה בלקוח", ואם השם שווה לזהות של מיכל לשלוח "".
+- **26/07: נוסף חיפוש ל-index.php.** שדה `?q=` בניווט, מחפש בכל הסטטוסים על title / description / proposal_text / notes / agent_notes / client_name / project_id (prepared LIKE).
+- **26/07: פרויקט 214000 (אפליקציית טארוט MVP) הוזן ידנית.** פורסם 07/06/26 — לפני שהסוכן התחיל לרוץ, ולכן מעולם לא נקלט בסריקה. מיכל הגישה ידנית (הצעה + מסמך איפיון ~10K ₪). נוסף כ-`submitted` + לקח `rejected_price`. תזכורת: פרויקטים שהוגשו ידנית מחוץ למערכת צריך להזין ידנית (add_proposal + action=submitted) כדי שהלמידה וה-change-gate יכירו אותם.
 - **13/07: נוספה בדיקת הודעות** (טבלת `messages`, שלושה endpoints, עמוד `messages.php`, STEP 1.4 בסוכן). ההחלטה המפורשת: **התראה בלבד, בלי מענה אוטומטי ובלי טיוטות מענה.** הסוכן מזהה שלקוח כתב ולא נענה, מיכל עונה בעצמה.
 - **13/07: `partials/footer.php` היה חסר בשרת** (index.php כלל אותו והפיל PHP Warning בלוג). הועלה ותוקן.
 

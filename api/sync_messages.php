@@ -79,6 +79,11 @@ foreach ($threads as $t) {
     $projectId    = trim((string)($t['project_id'] ?? '')) ?: null;
     $projectTitle = trim((string)($t['project_title'] ?? '')) ?: null;
     $participant  = trim((string)($t['participant'] ?? '')) ?: null;
+    // Guard: never store Michal's own account name as the thread participant.
+    if ($participant !== null
+        && in_array(mb_strtolower($participant, 'UTF-8'), ['michal chemo', 'מיכל חמו', 'nintay'], true)) {
+        $participant = null;
+    }
     $text         = trim((string)($t['last_message_text'] ?? ''));
     $text         = $text !== '' ? mb_substr($text, 0, 1000) : null;
     $fromMe       = !empty($t['last_from_me']) ? 1 : 0;
@@ -120,7 +125,25 @@ foreach ($threads as $t) {
         continue;
     }
 
-    // Same message we already know about. Only close the loop if Michal has since replied.
+    // Same message date we already know about.
+    // Reconcile a stale misclassification: the thread now shows the CLIENT wrote last, but we
+    // have it as 'handled'. That means an earlier run advanced the date while mis-reading the
+    // sender (or the per-run cap deferred it and it was never revisited). Re-open + re-alert.
+    // 'ignored' is already returned above, so this only ever touches needs_reply/handled rows.
+    if (!$fromMe && $row['status'] === 'handled') {
+        $reopen = $db->prepare(
+            'UPDATE messages
+                SET project_id=COALESCE(?, project_id),
+                    project_title=COALESCE(?, project_title),
+                    participant=COALESCE(?, participant),
+                    last_from_me=0, status=?, alerted=0, updated_at=NOW()
+              WHERE id=?'
+        );
+        $reopen->execute([$projectId, $projectTitle, $participant, 'needs_reply', $row['id']]);
+        continue;
+    }
+
+    // Otherwise: only close the loop if Michal has since replied.
     $status = ($row['status'] === 'needs_reply' && $fromMe) ? 'handled' : $row['status'];
     $updMeta->execute([$projectId, $projectTitle, $participant, $fromMe, $status, $row['id']]);
 }

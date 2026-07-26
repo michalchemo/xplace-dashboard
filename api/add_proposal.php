@@ -36,6 +36,14 @@ $price               = (int)($body['price'] ?? 200);
 $price_type          = $body['price_type'] ?? 'hourly';
 $client_name         = trim($body['client_name'] ?? '');     // optional — client display name
 
+// Guard: the agent must never send Michal's own account name as the client.
+// (Bug 26/07/26: the agent scraped the logged-in header name, so every row got
+// "Michal Chemo". The UI then falls back to messages.participant, which is correct.)
+$self_names = ['michal chemo', 'מיכל חמו', 'nintay'];
+if ($client_name !== '' && in_array(mb_strtolower($client_name, 'UTF-8'), $self_names, true)) {
+    $client_name = '';
+}
+
 // --- Upsert: never overwrite an existing proposal's content, but do backfill
 // --- client_name on rows that don't have one yet.
 $db = get_db();

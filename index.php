@@ -8,12 +8,23 @@ $filter = $_GET['status'] ?? 'pending';
 $valid  = ['pending', 'approved', 'to_withdraw', 'submitted', 'all'];
 if (!in_array($filter, $valid)) $filter = 'pending';
 
-$where = $filter === 'all' ? '' : "WHERE status = '$filter'";
+// Search: ?q= searches ALL statuses across title / ad content / proposal text /
+// notes / agent notes / client name / project id. Overrides the status filter.
+$q      = trim($_GET['q'] ?? '');
+$params = [];
+if ($q !== '') {
+    $searchCols = ['p.project_title', 'p.project_description', 'p.proposal_text',
+                   'p.notes', 'p.agent_notes', 'p.client_name', 'p.project_id'];
+    $where  = 'WHERE (' . implode(' LIKE ? OR ', $searchCols) . ' LIKE ?)';
+    $params = array_fill(0, count($searchCols), '%' . $q . '%');
+} else {
+    $where = $filter === 'all' ? '' : "WHERE p.status = '$filter'";
+}
 // Client name: prefer proposals.client_name (agent-supplied), fall back to the chat
 // participant from the messages table. try/catch keeps the page alive until the
 // migration adds the client_name column.
 try {
-    $rows = $db->query("
+    $stmt = $db->prepare("
         SELECT p.*, COALESCE(NULLIF(p.client_name, ''), m.participant) AS client_display
         FROM proposals p
         LEFT JOIN (
@@ -22,9 +33,19 @@ try {
             WHERE participant IS NOT NULL AND participant <> ''
             GROUP BY project_id
         ) m ON m.project_id = p.project_id
-        $where ORDER BY p.created_at DESC")->fetchAll();
+        $where ORDER BY p.created_at DESC");
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
 } catch (Exception $e) {
-    $rows = $db->query("SELECT * FROM proposals $where ORDER BY created_at DESC")->fetchAll();
+    // Pre-migration fallback (no client_name column): same query minus the join.
+    if ($q !== '') {
+        $cols   = ['p.project_title', 'p.proposal_text', 'p.notes', 'p.project_id'];
+        $where  = 'WHERE (' . implode(' LIKE ? OR ', $cols) . ' LIKE ?)';
+        $params = array_fill(0, count($cols), '%' . $q . '%');
+    }
+    $stmt = $db->prepare("SELECT * FROM proposals p $where ORDER BY p.created_at DESC");
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
     foreach ($rows as &$r) { $r['client_display'] = null; } unset($r);
 }
 
@@ -52,6 +73,13 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   nav a.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 600; }
   nav a .badge { background: #e0e0e0; color: #555; border-radius: 10px; padding: 1px 6px; font-size: 11px; }
   nav a.active .badge { background: #1a1a2e; color: #fff; }
+
+  .nav-search { display: flex; align-items: center; gap: 6px; padding: 6px 0; margin-inline-start: 10px; }
+  .nav-search input { border: 1px solid #ddd; border-radius: 16px; padding: 5px 12px; font-size: 12px; width: 170px; direction: rtl; font-family: inherit; }
+  .nav-search input:focus { outline: none; border-color: #1a1a2e; }
+  .nav-search-clear { color: #999; text-decoration: none; font-size: 13px; padding: 2px 6px; }
+  .nav-search-clear:hover { color: #dc3545; }
+  .search-summary { font-size: 12px; color: #666; padding: 0 4px 10px; }
 
   .workspace { display: flex; flex: 1; overflow: hidden; }
 
@@ -155,6 +183,8 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
     nav { padding: 0 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     nav::-webkit-scrollbar { height: 0; }
     nav a { flex: 0 0 auto; padding: 10px 10px; white-space: nowrap; font-size: 13px; }
+    .nav-search { flex: 0 0 auto; }
+    .nav-search input { width: 130px; }
 
     /* stack: cards on top, detail panel below */
     .workspace { flex-direction: column; overflow: visible; }
@@ -187,7 +217,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
 <nav>
   <?php foreach (['pending'=>'ממתינות','approved'=>'לשליחה','submitted'=>'נשלחו','to_withdraw'=>'נדחו','all'=>'הכל'] as $s => $label): ?>
-    <a href="?status=<?= $s ?>" class="<?= $filter===$s ? 'active' : '' ?>">
+    <a href="?status=<?= $s ?>" class="<?= ($q === '' && $filter===$s) ? 'active' : '' ?>">
       <?= $label ?>
       <?php if ($s !== 'all'): ?>
         <span class="badge"><?= $counts[$s] ?? 0 ?></span>
@@ -204,6 +234,10 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
         $msgWaiting = (int)$db->query("SELECT COUNT(*) FROM messages WHERE status='needs_reply'")->fetchColumn();
     } catch (Exception $e) { /* table not migrated yet */ }
   ?>
+  <form class="nav-search" method="get" action="index.php">
+    <input type="search" name="q" value="<?= htmlspecialchars($q) ?>" placeholder="&#128269; חיפוש בכל ההצעות...">
+    <?php if ($q !== ''): ?><a class="nav-search-clear" href="index.php" title="נקה חיפוש">&#10005;</a><?php endif; ?>
+  </form>
   <a href="messages.php" style="margin-inline-start:auto">הודעות
     <?php if ($msgWaiting): ?><span class="badge" style="background:#dc3545;color:#fff"><?= $msgWaiting ?></span><?php endif; ?>
   </a>
@@ -260,8 +294,11 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
   <!-- Right: card list -->
   <div class="card-list">
+    <?php if ($q !== ''): ?>
+      <div class="search-summary"><?= count($rows) ?> תוצאות עבור &laquo;<?= htmlspecialchars($q) ?>&raquo; (בכל הסטטוסים)</div>
+    <?php endif; ?>
     <?php if (empty($rows)): ?>
-      <div class="empty">אין הצעות ב-<?= htmlspecialchars($filter) ?></div>
+      <div class="empty"><?= $q !== '' ? 'אין תוצאות עבור &laquo;' . htmlspecialchars($q) . '&raquo;' : 'אין הצעות ב-' . htmlspecialchars($filter) ?></div>
     <?php else: ?>
       <?php foreach ($rows as $row):
         $isPlaceholder = ($row['proposal_text'] === 'ממתין לסקירה' || $row['proposal_text'] === '');
