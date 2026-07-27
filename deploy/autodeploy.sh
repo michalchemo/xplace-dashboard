@@ -25,6 +25,11 @@ if [ "$LOCAL" != "$REMOTE" ]; then
         echo "$(date '+%F %T') autodeploy script updated"
     fi
 
+    # BRISK-106: restart the Brain notify service when its code changed.
+    if git diff --name-only "$LOCAL" "$REMOTE" | grep -q '^brain/'; then
+        systemctl restart brain-notify 2>/dev/null && \
+            echo "$(date '+%F %T') brain-notify restarted"
+    fi
     # run idempotent DB migrations (API key read from config.php on this server)
     KEY=$(php -r "require '$REPO/config.php'; echo API_KEY;" 2>/dev/null)
     if [ -n "$KEY" ]; then
