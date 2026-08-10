@@ -11,8 +11,17 @@ if (!in_array($filter, $valid)) $filter = 'pending';
 // Search: ?q= searches ALL statuses across title / ad content / proposal text /
 // notes / agent notes / client name / project id. Overrides the status filter.
 $q      = trim($_GET['q'] ?? '');
+
+// Permalink: ?p=<project_id> opens one specific ad, in any status. This is the
+// link the "העתק לינק" button copies, so a single ad can be shared directly
+// instead of sending a search URL. Overrides both ?q= and the status filter.
+$p      = trim($_GET['p'] ?? '');
+
 $params = [];
-if ($q !== '') {
+if ($p !== '') {
+    $where  = 'WHERE p.project_id = ?';
+    $params = [$p];
+} elseif ($q !== '') {
     $searchCols = ['p.project_title', 'p.project_description', 'p.proposal_text',
                    'p.notes', 'p.agent_notes', 'p.client_name', 'p.project_id'];
     $where  = 'WHERE (' . implode(' LIKE ? OR ', $searchCols) . ' LIKE ?)';
@@ -157,6 +166,8 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .btn-save     { background: #e9ecef; color: #333; }
   .btn-xplace   { background: #f0f0f0; color: #333; text-decoration: none; display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
   .btn-xplace:hover { background: #e0e0e0; }
+  .btn-share    { background: #f0f0f0; color: #333; }
+  .btn-share:hover { background: #e0e0e0; }
 
   .btn-request  { background: #6f42c1; color: #fff; }
   .btn-waiting  { background: #e9ecef; color: #888; font-style: italic; }
@@ -217,7 +228,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
 <nav>
   <?php foreach (['pending'=>'ממתינות','approved'=>'לשליחה','submitted'=>'נשלחו','to_withdraw'=>'נדחו','all'=>'הכל'] as $s => $label): ?>
-    <a href="?status=<?= $s ?>" class="<?= ($q === '' && $filter===$s) ? 'active' : '' ?>">
+    <a href="?status=<?= $s ?>" class="<?= ($q === '' && $p === '' && $filter===$s) ? 'active' : '' ?>">
       <?= $label ?>
       <?php if ($s !== 'all'): ?>
         <span class="badge"><?= $counts[$s] ?? 0 ?></span>
@@ -262,6 +273,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
         <div class="detail-client" id="detailClient" style="display:none"></div>
         <h2 id="detailTitle"></h2>
         <a id="detailLink" href="#" target="_blank">פתח ב-XPlace &#8599;</a>
+        <button class="btn-share" id="detailShareBtn" style="margin-inline-start:10px" title="העתק לינק ישיר למודעה הזו">&#128279; העתק לינק</button>
       </div>
       <div class="detail-body">
         <div>
@@ -294,11 +306,20 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
   <!-- Right: card list -->
   <div class="card-list">
-    <?php if ($q !== ''): ?>
+    <?php if ($p !== ''): ?>
+      <div class="search-summary">
+        מודעה בודדת &middot; פרויקט #<?= htmlspecialchars($p) ?>
+        <a class="nav-search-clear" href="index.php" title="חזרה לכל ההצעות">&#10005; חזרה לרשימה</a>
+      </div>
+    <?php elseif ($q !== ''): ?>
       <div class="search-summary"><?= count($rows) ?> תוצאות עבור &laquo;<?= htmlspecialchars($q) ?>&raquo; (בכל הסטטוסים)</div>
     <?php endif; ?>
     <?php if (empty($rows)): ?>
-      <div class="empty"><?= $q !== '' ? 'אין תוצאות עבור &laquo;' . htmlspecialchars($q) . '&raquo;' : 'אין הצעות ב-' . htmlspecialchars($filter) ?></div>
+      <div class="empty"><?php
+        if ($p !== '')      echo 'פרויקט #' . htmlspecialchars($p) . ' לא נמצא במערכת';
+        elseif ($q !== '')  echo 'אין תוצאות עבור &laquo;' . htmlspecialchars($q) . '&raquo;';
+        else                echo 'אין הצעות ב-' . htmlspecialchars($filter);
+      ?></div>
     <?php else: ?>
       <?php foreach ($rows as $row):
         $isPlaceholder = ($row['proposal_text'] === 'ממתין לסקירה' || $row['proposal_text'] === '');
@@ -306,7 +327,7 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       <div class="card" id="card-<?= $row['id'] ?>">
 
         <div class="card-header"
-             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['agent_notes'] ?? ''), ENT_QUOTES) ?>, <?= (int)($row['proposal_requested'] ?? 0) ?>, <?= htmlspecialchars(json_encode($row['client_display'] ?? ''), ENT_QUOTES) ?>)">
+             onclick="loadDetail(<?= $row['id'] ?>, <?= htmlspecialchars(json_encode($row['project_url']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['proposal_text']), ENT_QUOTES) ?>, <?= (int)$row['price'] ?>, <?= htmlspecialchars(json_encode($row['notes'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['status']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['project_description'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($row['agent_notes'] ?? ''), ENT_QUOTES) ?>, <?= (int)($row['proposal_requested'] ?? 0) ?>, <?= htmlspecialchars(json_encode($row['client_display'] ?? ''), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$row['project_id']), ENT_QUOTES) ?>)">
           <div style="flex:1;min-width:0">
             <div class="card-title"><?= htmlspecialchars($row['project_title']) ?></div>
             <?php if (!empty($row['client_display'])): ?>
@@ -325,6 +346,8 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
 
         <div class="card-footer">
           <a class="btn-xplace" href="<?= htmlspecialchars($row['project_url']) ?>" target="_blank">XPlace &#8599;</a>
+          <button class="btn-share" title="העתק לינק ישיר למודעה הזו"
+                  onclick="copyShareLink(<?= htmlspecialchars(json_encode((string)$row['project_id']), ENT_QUOTES) ?>, this)">&#128279; העתק לינק</button>
 
           <?php if ($row['status'] === 'pending'): ?>
             <?php if (!$isPlaceholder): ?>
@@ -459,8 +482,51 @@ function clearDetailPlaceholder() {
   }
 }
 
-function loadDetail(id, url, title, text, price, notes, status, description, agentNotes, proposalRequested, clientName) {
+// ── Share: direct link to one ad ───────────────────────────────
+// Copies https://<host>/index.php?p=<project_id> — a permalink that opens this
+// single ad, instead of sharing a ?q= search URL.
+function shareLinkFor(projectId) {
+  return location.origin + '/index.php?p=' + encodeURIComponent(projectId);
+}
+
+function copyShareLink(projectId, btn) {
+  const url = shareLinkFor(projectId);
+  const done = () => {
+    showToast('🔗 הלינק הועתק: ' + url);
+    if (btn) { const t = btn.innerHTML; btn.innerHTML = '✓ הועתק'; setTimeout(() => btn.innerHTML = t, 1500); }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(done).catch(() => fallbackCopy(url, done));
+  } else {
+    fallbackCopy(url, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); }
+  catch { prompt('העתיקי את הלינק:', text); }
+  document.body.removeChild(ta);
+}
+
+function loadDetail(id, url, title, text, price, notes, status, description, agentNotes, proposalRequested, clientName, projectId) {
   currentId = id;
+
+  // share button in the detail header
+  const shareBtn = document.getElementById('detailShareBtn');
+  if (shareBtn) {
+    if (projectId) {
+      shareBtn.style.display = '';
+      shareBtn.onclick = () => copyShareLink(projectId, shareBtn);
+    } else {
+      shareBtn.style.display = 'none';
+    }
+  }
 
   // client name chip
   const clientChip = document.getElementById('detailClient');
@@ -741,6 +807,18 @@ function doAction(id, action, textOverride, priceOverride, notesOverride, reject
     })
     .catch(err => alert('שגיאת רשת:\n' + err.message));
 }
+
+<?php if ($p !== '' && count($rows) === 1): ?>
+// Permalink (?p=): open the ad's detail panel automatically.
+(function () {
+  const open = () => {
+    const h = document.querySelector('#card-<?= (int)$rows[0]['id'] ?> .card-header');
+    if (h) h.click();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', open);
+  else open();
+})();
+<?php endif; ?>
 </script>
 <?php include __DIR__ . '/footer.php'; ?>
 </body>
