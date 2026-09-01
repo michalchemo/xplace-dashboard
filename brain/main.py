@@ -215,3 +215,26 @@ def board_logout():
     resp = _RedirectResponse("/", status_code=303)
     resp.delete_cookie("brain_session")
     return resp
+
+
+# --- Manual run triggers for the board buttons (01.09.26) ---
+import subprocess as _subprocess
+
+_RUN_JOBS = {
+    "hours": ["/usr/bin/python3", "/opt/brain/hours/hours_agent.py"],
+    "monthend": ["/bin/bash", "-c",
+                 "cd /opt/brisk && set -a && . ./.env && set +a && "
+                 ".venv/bin/python /opt/brain/billing/monthend_agent.py"],
+}
+
+
+@app.post("/run/{job}")
+def run_job(job: str, request: _Request):
+    if not _session_ok(request, config()):
+        raise HTTPException(status_code=401, detail="login required")
+    cmd = _RUN_JOBS.get(job)
+    if not cmd:
+        raise HTTPException(status_code=404, detail="unknown job")
+    log = open("/opt/brain/run-%s.log" % job, "ab")
+    _subprocess.Popen(cmd, cwd="/opt/brain", stdout=log, stderr=_subprocess.STDOUT)
+    return {"started": job}
