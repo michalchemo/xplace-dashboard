@@ -171,29 +171,47 @@ def notify(body: NotifyIn, authorization: str = Header(default="")):
         raise HTTPException(status_code=503, detail="no email transport configured")
     return JSONResponse({"ok": True, "sent": body.to})
 
-# --- Brain board: the agents dashboard, behind basic auth (01.09.26) ---
-import secrets as _secrets
-from fastapi import Request as _Request
-from fastapi.responses import FileResponse as _FileResponse, Response as _Response
 
-_BOARD_PATH = os.environ.get("BRAIN_BOARD", "/opt/brain/board/index.html")
+# --- Brain board: the agents dashboard, session login like BRISK (01.09.26) ---
+import time as _time
+
+from fastapi import Request as _Request
+from fastapi.responses import (FileResponse as _FileResponse,
+                               HTMLResponse as _HTMLResponse,
+                               RedirectResponse as _RedirectResponse)
+
+from board_auth import (BOARD_PATH as _BOARD_PATH, LOGIN_HTML as _LOGIN_HTML,
+                        SESSION_DAYS as _SESSION_DAYS, check_login as _check_login,
+                        session_ok as _session_ok, sign as _sign)
 
 
 @app.get("/")
 def board(request: _Request):
-    cfg = config()
-    user, pw = cfg.get("BOARD_USER", ""), cfg.get("BOARD_PASS", "")
-    auth = request.headers.get("authorization", "")
-    ok = False
-    if user and pw and auth.lower().startswith("basic "):
-        try:
-            got = base64.b64decode(auth.split(None, 1)[1]).decode("utf-8")
-            ok = _secrets.compare_digest(got, f"{user}:{pw}")
-        except Exception:
-            ok = False
-    if not ok:
-        return _Response(status_code=401,
-                         headers={"WWW-Authenticate": 'Basic realm="Nintay Brain"'})
+    if not _session_ok(request, config()):
+        return _HTMLResponse(_LOGIN_HTML.replace("{err}", ""))
     if not os.path.exists(_BOARD_PATH):
-        raise HTTPException(status_code=404, detail="board not published yet")
+        return _HTMLResponse("board not published yet", status_code=404)
     return _FileResponse(_BOARD_PATH, media_type="text/html; charset=utf-8")
+
+
+@app.post("/login")
+async def board_login(request: _Request):
+    cfg = config()
+    body = (await request.body()).decode("utf-8", "replace")
+    if _check_login(body, cfg):
+        exp = str(int(_time.time()) + _SESSION_DAYS * 86400)
+        resp = _RedirectResponse("/", status_code=303)
+        resp.set_cookie("brain_session",
+                        exp + "." + _sign(exp, cfg.get("BOARD_SECRET", "")),
+                        max_age=_SESSION_DAYS * 86400, httponly=True,
+                        secure=True, samesite="lax")
+        return resp
+    return _HTMLResponse(_LOGIN_HTML.replace("{err}", "פרטי הכניסה שגויים"),
+                         status_code=401)
+
+
+@app.get("/logout")
+def board_logout():
+    resp = _RedirectResponse("/", status_code=303)
+    resp.delete_cookie("brain_session")
+    return resp
