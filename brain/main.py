@@ -170,3 +170,30 @@ def notify(body: NotifyIn, authorization: str = Header(default="")):
     else:
         raise HTTPException(status_code=503, detail="no email transport configured")
     return JSONResponse({"ok": True, "sent": body.to})
+
+# --- Brain board: the agents dashboard, behind basic auth (01.09.26) ---
+import secrets as _secrets
+from fastapi import Request as _Request
+from fastapi.responses import FileResponse as _FileResponse, Response as _Response
+
+_BOARD_PATH = os.environ.get("BRAIN_BOARD", "/opt/brain/board/index.html")
+
+
+@app.get("/")
+def board(request: _Request):
+    cfg = config()
+    user, pw = cfg.get("BOARD_USER", ""), cfg.get("BOARD_PASS", "")
+    auth = request.headers.get("authorization", "")
+    ok = False
+    if user and pw and auth.lower().startswith("basic "):
+        try:
+            got = base64.b64decode(auth.split(None, 1)[1]).decode("utf-8")
+            ok = _secrets.compare_digest(got, f"{user}:{pw}")
+        except Exception:
+            ok = False
+    if not ok:
+        return _Response(status_code=401,
+                         headers={"WWW-Authenticate": 'Basic realm="Nintay Brain"'})
+    if not os.path.exists(_BOARD_PATH):
+        raise HTTPException(status_code=404, detail="board not published yet")
+    return _FileResponse(_BOARD_PATH, media_type="text/html; charset=utf-8")
