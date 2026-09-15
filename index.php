@@ -172,6 +172,12 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
   .btn-request  { background: #6f42c1; color: #fff; }
   .btn-waiting  { background: #e9ecef; color: #888; font-style: italic; }
   .btn-confirm-reject { background: #b45309; color: #fff; }
+  .bulk-bar { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 10px; background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; font-size: 12px; color: #7c2d12; }
+  .bulk-bar button { border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .bulk-bar .btn-bulk { background: #b45309; color: #fff; }
+  .bulk-bar .btn-bulk.arm { background: #dc2626; }
+  .bulk-bar .btn-bulk:disabled { opacity: .6; cursor: default; }
+  .bulk-bar .btn-bulk-cancel { background: #eee; color: #444; }
   .btn-newcontent { background: #6f42c1; color: #fff; }
 
   .card-agent-note { font-size: 11px; color: #7a5800; background: #fffbe6; border-top: 1px solid #ffe066; padding: 5px 12px 6px; line-height: 1.5; direction: rtl; }
@@ -313,6 +319,21 @@ foreach (['pending','approved','to_withdraw','submitted'] as $s) {
       </div>
     <?php elseif ($q !== ''): ?>
       <div class="search-summary"><?= count($rows) ?> תוצאות עבור &laquo;<?= htmlspecialchars($q) ?>&raquo; (בכל הסטטוסים)</div>
+    <?php endif; ?>
+    <?php
+      // Bulk confirm of agent-proposed rejections: pending cards where the agent left a reason.
+      $agentRejects = [];
+      if ($filter === 'pending' && $q === '' && $p === '') {
+          foreach ($rows as $r) if (!empty($r['agent_notes'])) $agentRejects[] = ['id' => (int)$r['id'], 'reason' => $r['agent_notes']];
+      }
+    ?>
+    <?php if ($agentRejects): ?>
+      <div class="bulk-bar" id="bulkBar">
+        <span>&#129302; הסוכן מציע לדחות <b><?= count($agentRejects) ?></b> הצעות</span>
+        <button class="btn-bulk" id="bulkBtn" onclick="bulkConfirmAgentRejections()">&#10003; אשר את כל הדחיות (<?= count($agentRejects) ?>)</button>
+        <button class="btn-bulk-cancel" id="bulkCancel" style="display:none" onclick="bulkCancel()">ביטול</button>
+      </div>
+      <script>const AGENT_REJECTS = <?= json_encode($agentRejects, JSON_UNESCAPED_UNICODE) ?>;</script>
     <?php endif; ?>
     <?php if (empty($rows)): ?>
       <div class="empty"><?php
@@ -705,6 +726,44 @@ function requestProposal(id) {
 // kept as the rejection_reason (feeds learning) but Michal types nothing.
 function dismissAgent(id, reason) {
   doAction(id, 'dismiss', undefined, undefined, undefined, reason || '');
+}
+
+// Bulk: confirm every agent-proposed rejection in the pending list.
+// Two clicks (arm, then confirm) - no browser confirm() dialog. The agent's
+// reason is saved per card as rejection_reason, same as the single button.
+let bulkArmed = false;
+function bulkCancel() {
+  bulkArmed = false;
+  const b = document.getElementById('bulkBtn');
+  b.classList.remove('arm');
+  b.textContent = '✓ אשר את כל הדחיות (' + AGENT_REJECTS.length + ')';
+  document.getElementById('bulkCancel').style.display = 'none';
+}
+async function bulkConfirmAgentRejections() {
+  const b = document.getElementById('bulkBtn');
+  if (!bulkArmed) {
+    bulkArmed = true;
+    b.classList.add('arm');
+    b.textContent = 'בטוח? דחה ' + AGENT_REJECTS.length + ' הצעות';
+    document.getElementById('bulkCancel').style.display = '';
+    return;
+  }
+  b.disabled = true;
+  document.getElementById('bulkCancel').style.display = 'none';
+  let ok = 0, fail = 0;
+  for (const it of AGENT_REJECTS) {
+    if (!document.getElementById('card-' + it.id)) continue; // already handled manually
+    b.textContent = 'דוחה... ' + (ok + fail + 1) + '/' + AGENT_REJECTS.length;
+    const body = new URLSearchParams({ action: 'dismiss', id: it.id, proposal_text: '', price: 200, notes: '', rejection_reason: it.reason });
+    try {
+      const r = await fetch('action.php', { method: 'POST', body });
+      const d = JSON.parse(await r.text());
+      if (d.ok) { ok++; const c = document.getElementById('card-' + it.id); if (c) c.remove(); }
+      else fail++;
+    } catch (e) { fail++; }
+  }
+  showToast('✕ נדחו ' + ok + ' הצעות' + (fail ? ' (' + fail + ' נכשלו)' : ''));
+  setTimeout(() => location.reload(), 1200);
 }
 
 // Dismiss with no reason at all (from the modal).
