@@ -3,3 +3,5 @@ SECRETS.local.md
 drafts/
 .DS_Store
 *.log
+__pycache__/
+.pytest_cache/

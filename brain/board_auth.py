@@ -6,7 +6,10 @@ import os
 import time
 from urllib.parse import parse_qs
 
-BOARD_PATH = os.environ.get("BRAIN_BOARD", "/opt/brain/board/index.html")
+# Board HTML: the repo copy (brain/board/index.html) wins; the old /opt/brain path is the fallback.
+_REPO_BOARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "board", "index.html")
+BOARD_PATH = os.environ.get("BRAIN_BOARD") or (
+    _REPO_BOARD if os.path.exists(_REPO_BOARD) else "/opt/brain/board/index.html")
 SESSION_DAYS = 30
 
 LOGIN_HTML = """<!doctype html><html lang="he" dir="rtl"><head>

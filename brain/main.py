@@ -191,7 +191,8 @@ def board(request: _Request):
         return _HTMLResponse(_LOGIN_HTML.replace("{err}", ""))
     if not os.path.exists(_BOARD_PATH):
         return _HTMLResponse("board not published yet", status_code=404)
-    return _FileResponse(_BOARD_PATH, media_type="text/html; charset=utf-8")
+    return _FileResponse(_BOARD_PATH, media_type="text/html; charset=utf-8",
+                         headers={"Cache-Control": "no-store"})
 
 
 @app.post("/login")
@@ -217,24 +218,76 @@ def board_logout():
     return resp
 
 
-# --- Manual run triggers for the board buttons (01.09.26) ---
-import subprocess as _subprocess
+# --- Live board (24.09.26): job queue + status API. Runs go through brain/jobs.py ---
+import jobs as _jobs
+import status as _status
 
-_RUN_JOBS = {
-    "hours": ["/usr/bin/python3", "/opt/brain/hours/hours_agent.py"],
-    "monthend": ["/bin/bash", "-c",
-                 "cd /opt/brisk && set -a && . ./.env && set +a && "
-                 ".venv/bin/python /opt/brain/billing/monthend_agent.py"],
-}
+
+def _startup_jobs():
+    """Init the queue DB and start the single worker thread. Runs once at import
+    (uvicorn loads this module once) - works on every FastAPI version, and the
+    notify service still boots if the queue is broken."""
+    try:
+        _jobs.init_db()
+        if os.environ.get("BRAIN_JOBS_WORKER", "1") != "0":
+            _jobs.start_worker()
+    except Exception as e:  # pragma: no cover
+        print("[brain] job queue not started:", e)
+
+
+_startup_jobs()
+
+
+def _require_session(request: _Request):
+    if not _session_ok(request, config()):
+        raise HTTPException(status_code=401, detail="login required")
+
+
+@app.get("/api/status")
+def api_status(request: _Request):
+    _require_session(request)
+    return _status.compute_status()
+
+
+@app.get("/api/jobs")
+def api_jobs(request: _Request, limit: int = 15):
+    _require_session(request)
+    return {"jobs": _jobs.list_jobs(limit)}
+
+
+@app.get("/api/jobs/{job_id}")
+def api_job(job_id: int, request: _Request):
+    _require_session(request)
+    row = _jobs.get_job(job_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="no such job")
+    return row
+
+
+@app.get("/api/projects")
+def api_projects(request: _Request):
+    _require_session(request)
+    return {"projects": _status.projects()}
 
 
 @app.post("/run/{job}")
-def run_job(job: str, request: _Request):
-    if not _session_ok(request, config()):
-        raise HTTPException(status_code=401, detail="login required")
-    cmd = _RUN_JOBS.get(job)
-    if not cmd:
+async def run_job(job: str, request: _Request):
+    """Enqueue a job. Optional JSON body = args. POST /run/hours with no body still works."""
+    _require_session(request)
+    if job not in _jobs.JOBS:
         raise HTTPException(status_code=404, detail="unknown job")
-    log = open("/opt/brain/run-%s.log" % job, "ab")
-    _subprocess.Popen(cmd, cwd="/opt/brain", stdout=log, stderr=_subprocess.STDOUT)
-    return {"started": job}
+    raw = await request.body()
+    args = {}
+    if raw.strip():
+        try:
+            args = json.loads(raw.decode("utf-8", "replace"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="body must be JSON")
+        if not isinstance(args, dict):
+            raise HTTPException(status_code=400, detail="body must be a JSON object")
+    try:
+        job_id = _jobs.enqueue(job, args)
+    except _jobs.JobError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _status.invalidate()
+    return {"job_id": job_id, "status": "queued", "started": job}
